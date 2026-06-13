@@ -1,0 +1,31 @@
+{
+  "item": "organeffectprocessor:wonder_lung",
+  "valid_parts": ["organapi:chest"],
+  "size": 1,
+  "tooltips": ["Lungs that grant underwater breathing."],
+  "tags": ["wonder", "respiratory"],
+  "effects": [
+    {
+      "condition": "static",
+      "limit": 0,
+      "points": [
+        {
+          "type": "attribute",
+          "attribute": "minecraft:oxygen_bonus",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "condition": "exactPos",
+      "limit": 0,
+      "points": [
+        {
+          "type": "skill",
+          "skill_name": "water_breathing",
+          "amount": 1
+        }
+      ]
+    }
+  ]
+}

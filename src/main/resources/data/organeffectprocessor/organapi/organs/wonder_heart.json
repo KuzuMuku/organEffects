@@ -1,0 +1,31 @@
+{
+  "item": "organeffectprocessor:wonder_heart",
+  "valid_parts": ["organapi:chest"],
+  "size": 1,
+  "tooltips": ["A mysterious heart with wondrous properties."],
+  "tags": ["wonder", "sample"],
+  "effects": [
+    {
+      "condition": "static",
+      "limit": 0,
+      "points": [
+        {
+          "type": "attribute",
+          "attribute": "minecraft:luck",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "condition": "exactPos",
+      "limit": 2,
+      "points": [
+        {
+          "type": "skill",
+          "skill_name": "wonder_sight",
+          "amount": 2
+        }
+      ]
+    }
+  ]
+}

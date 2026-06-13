@@ -1,0 +1,20 @@
+{
+  "item": "organeffectprocessor:wonder_brain_v2",
+  "valid_parts": ["organapi:head"],
+  "size": 1,
+  "tooltips": ["An advanced brain with multiple mental enhancements."],
+  "tags": ["wonder", "neural", "advanced"],
+  "effects": [
+    {
+      "condition": "static",
+      "limit": 0,
+      "points": [
+        {
+          "type": "attribute",
+          "attribute": "minecraft:movement_speed",
+          "amount": 1
+        }
+      ]
+    }
+  ]
+}

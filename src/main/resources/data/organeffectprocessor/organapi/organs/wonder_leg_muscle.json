@@ -1,0 +1,31 @@
+{
+  "item": "organeffectprocessor:wonder_leg_muscle",
+  "valid_parts": ["organapi:left_leg", "organapi:right_leg"],
+  "size": 1,
+  "tooltips": ["Supercharged leg muscles."],
+  "tags": ["wonder", "muscle"],
+  "effects": [
+    {
+      "condition": "static",
+      "limit": 0,
+      "points": [
+        {
+          "type": "attribute",
+          "attribute": "minecraft:jump_strength",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "condition": "exactPos",
+      "limit": 1,
+      "points": [
+        {
+          "type": "skill",
+          "skill_name": "double_jump",
+          "amount": 1
+        }
+      ]
+    }
+  ]
+}
