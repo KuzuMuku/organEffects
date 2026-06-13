@@ -5,7 +5,17 @@ import java.util.Map;
 public interface IEffectHolder {
     Map<String, Long> getEffectPoints();
 
-    void setEffectPoints(Map<String, Long> points);
+    Map<String, Map<String, Long>> getPointSources();
+
+    Map<String, Long> getPointsForSource(String sourceTag);
+
+    void replaceSourcePoints(String sourceTag, Map<String, Long> points);
+
+    long addSourcePoint(String sourceTag, String pointKey, long amount);
+
+    long consumeSourcePoint(String sourceTag, String pointKey, long amount);
+
+    long clearSourcePoint(String sourceTag, String pointKey);
 
     String getSelectedSkillId();
 

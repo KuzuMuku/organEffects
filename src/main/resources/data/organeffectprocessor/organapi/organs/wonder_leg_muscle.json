@@ -6,24 +6,85 @@
   "tags": ["wonder", "muscle"],
   "effects": [
     {
-      "condition": "static",
-      "limit": 0,
-      "points": [
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [
         {
           "type": "attribute",
-          "attribute": "minecraft:jump_strength",
+          "attribute": "jump_strength",
           "amount": 1
+        }
+      ],
+      "events": [
+        {
+          "type": "move",
+          "distance": 1,
+          "source": "self",
+          "add_points": [
+            {
+              "type": "counter",
+              "id": "charge",
+              "amount": 1,
+              "source": "self"
+            }
+          ],
+          "actions": []
+        },
+        {
+          "type": "attack",
+          "source": "self",
+          "add_points": [],
+          "consume_points": [],
+          "actions": [
+            {
+              "type": "bonus_damage_per_point",
+              "point_type": "counter",
+              "point_id": "charge",
+              "amount_per_point": 0.5,
+              "source": "self",
+              "max_consume": 999999
+            }
+          ]
         }
       ]
     },
     {
-      "condition": "exactPos",
-      "limit": 1,
-      "points": [
+      "conditions": [
+        {
+          "type": "distance_to_edge",
+          "edge": "top",
+          "op": "lte",
+          "value": 0
+        },
+        {
+          "type": "has_organ",
+          "scope": "symmetric_position",
+          "organ": "organeffectprocessor:wonder_leg_muscle"
+        }
+      ],
+      "grants": [
         {
           "type": "skill",
           "skill_name": "double_jump",
           "amount": 1
+        }
+      ],
+      "events": [
+        {
+          "type": "mine",
+          "add_points": [
+            {
+              "type": "counter",
+              "id": "miner_instinct",
+              "amount": 1,
+              "source": "self"
+            }
+          ],
+          "consume_points": [],
+          "actions": []
         }
       ]
     }

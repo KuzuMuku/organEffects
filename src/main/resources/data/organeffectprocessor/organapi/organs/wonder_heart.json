@@ -6,26 +6,86 @@
   "tags": ["wonder", "sample"],
   "effects": [
     {
-      "condition": "static",
-      "limit": 0,
-      "points": [
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [
         {
           "type": "attribute",
-          "attribute": "minecraft:luck",
+          "attribute": "luck",
           "amount": 1
+        }
+      ],
+      "events": [
+        {
+          "type": "eat",
+          "food_only": true,
+          "add_points": [
+            {
+              "type": "counter",
+              "id": "food_charge",
+              "amount": 1,
+              "source": "self"
+            }
+          ]
+        },
+        {
+          "type": "use_item",
+          "item": "organeffectprocessor:effect_point_viewer",
+          "add_points": [
+            {
+              "type": "counter",
+              "id": "focus",
+              "amount": 1,
+              "source": "self",
+              "chance": {
+                "base": 0.2,
+                "lucky_step": 0.15,
+                "max": 0.8
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "condition": "exactPos",
-      "limit": 2,
-      "points": [
+      "conditions": [
+        {
+          "type": "slot_index",
+          "op": "eq",
+          "value": 2
+        }
+      ],
+      "grants": [
         {
           "type": "skill",
           "skill_name": "wonder_sight",
           "amount": 2
         }
-      ]
+      ],
+      "events": []
+    },
+    {
+      "conditions": [
+        {
+          "type": "weather",
+          "value": "rain"
+        },
+        {
+          "type": "time",
+          "mode": "night"
+        }
+      ],
+      "grants": [
+        {
+          "type": "attribute",
+          "attribute": "attack_damage",
+          "amount": 1
+        }
+      ],
+      "events": []
     }
   ]
 }

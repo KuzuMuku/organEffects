@@ -6,6 +6,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mojang.logging.LogUtils;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,6 +19,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.util.profiling.ProfilerFiller;
+import org.slf4j.Logger;
 
 /**
  * Loads organ effect definitions embedded inside organ JSON files.
@@ -30,6 +32,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
     public static final OrganEffectData INSTANCE = new OrganEffectData();
     private static final String DIRECTORY = "organapi/organs";
     private static final Gson GSON = new GsonBuilder().create();
+    private static final Logger LOGGER = LogUtils.getLogger();
     private Map<ResourceLocation, List<EffectDefinition>> organEffects = new HashMap<>();
 
     private OrganEffectData() {
@@ -54,22 +57,24 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
 
                 JsonArray effects = GsonHelper.getAsJsonArray(obj, "effects");
                 List<EffectDefinition> definitions = new ArrayList<>();
-                for (JsonElement effectElement : effects) {
+                for (int index = 0; index < effects.size(); index++) {
+                    JsonElement effectElement = effects.get(index);
                     if (!effectElement.isJsonObject()) {
+                        LOGGER.warn("Skipping non-object effect entry {} in {}", index, entry.getKey());
                         continue;
                     }
-                    JsonObject effectObj = effectElement.getAsJsonObject();
-                    String trigger = readTrigger(effectObj);
-                    long value = readValue(effectObj);
-                    List<EffectDefinition.Grant> grants = readGrants(effectObj, entry.getKey().getNamespace());
-                    definitions.add(new EffectDefinition(trigger, value, grants));
+                    try {
+                        definitions.add(readEffect(effectElement.getAsJsonObject(), entry.getKey(), index));
+                    } catch (Exception e) {
+                        LOGGER.warn("Skipping malformed effect entry {} in {}: {}", index, entry.getKey(), e.getMessage());
+                    }
                 }
                 if (!definitions.isEmpty()) {
                     ResourceLocation definitionId = toDefinitionId(entry.getKey());
                     result.put(definitionId, definitions);
                 }
             } catch (Exception e) {
-                // Log error – silently skip malformed files during data reload
+                LOGGER.warn("Failed to load organ effect data from {}: {}", entry.getKey(), e.getMessage());
             }
         }
         return result;
@@ -88,10 +93,6 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         return organEffects;
     }
 
-    /**
-     * Converts a file ResourceLocation (e.g. {@code modid:organapi/organs/heart.json})
-     * into an organ definition ID (e.g. {@code modid:heart}).
-     */
     private static ResourceLocation toDefinitionId(ResourceLocation fileId) {
         String path = fileId.getPath();
         String prefix = DIRECTORY + "/";
@@ -104,30 +105,121 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         return ResourceLocation.fromNamespaceAndPath(fileId.getNamespace(), path);
     }
 
-    private static String readTrigger(JsonObject effectObj) {
-        if (effectObj.has("trigger")) {
-            return GsonHelper.getAsString(effectObj, "trigger");
-        }
-        return GsonHelper.getAsString(effectObj, "condition");
+    private static EffectDefinition readEffect(JsonObject effectObj, ResourceLocation fileId, int effectIndex) {
+        List<EffectDefinition.Condition> conditions = readConditions(effectObj, fileId, effectIndex);
+        List<EffectDefinition.Grant> grants = readGrants(effectObj, fileId.getNamespace());
+        List<EffectDefinition.EventRule> events = readEvents(effectObj, fileId, effectIndex, fileId.getNamespace());
+        return new EffectDefinition(conditions, grants, events);
     }
 
-    private static long readValue(JsonObject effectObj) {
-        if (effectObj.has("value")) {
-            return GsonHelper.getAsLong(effectObj, "value", 0L);
+    private static List<EffectDefinition.Condition> readConditions(JsonObject effectObj, ResourceLocation fileId, int effectIndex) {
+        if (!effectObj.has("conditions")) {
+            throw new IllegalArgumentException("Effect " + effectIndex + " in " + fileId + " is missing conditions");
         }
-        return GsonHelper.getAsLong(effectObj, "limit", 0L);
+        JsonArray conditionsArray = GsonHelper.getAsJsonArray(effectObj, "conditions");
+        List<EffectDefinition.Condition> conditions = new ArrayList<>();
+        for (int index = 0; index < conditionsArray.size(); index++) {
+            JsonElement conditionElement = conditionsArray.get(index);
+            if (!conditionElement.isJsonObject()) {
+                LOGGER.warn("Skipping non-object condition {} for effect {} in {}", index, effectIndex, fileId);
+                continue;
+            }
+            conditions.add(readConditionObject(conditionElement.getAsJsonObject(), fileId, effectIndex, index));
+        }
+        return conditions;
+    }
+
+    private static EffectDefinition.Condition readConditionObject(JsonObject conditionObj, ResourceLocation fileId, int effectIndex, int conditionIndex) {
+        String type = GsonHelper.getAsString(conditionObj, "type");
+        try {
+            return switch (type) {
+                case "static" -> new EffectDefinition.Condition("static", null, null, null, null, null, null, null, null, null, null, null);
+                case "slot_index" -> new EffectDefinition.Condition(
+                        "slot_index",
+                        readOperator(conditionObj),
+                        GsonHelper.getAsLong(conditionObj, "value"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
+                case "distance_to_edge" -> new EffectDefinition.Condition(
+                        "distance_to_edge",
+                        readOperator(conditionObj),
+                        GsonHelper.getAsLong(conditionObj, "value"),
+                        null,
+                        null,
+                        GsonHelper.getAsString(conditionObj, "edge"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
+                case "weather" -> new EffectDefinition.Condition(
+                        "weather",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        GsonHelper.getAsString(conditionObj, "value"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
+                case "time" -> new EffectDefinition.Condition(
+                        "time",
+                        conditionObj.has("op") ? GsonHelper.getAsString(conditionObj, "op") : null,
+                        conditionObj.has("value") ? GsonHelper.getAsLong(conditionObj, "value") : null,
+                        conditionObj.has("min") ? GsonHelper.getAsLong(conditionObj, "min") : null,
+                        conditionObj.has("max") ? GsonHelper.getAsLong(conditionObj, "max") : null,
+                        null,
+                        null,
+                        conditionObj.has("mode") ? GsonHelper.getAsString(conditionObj, "mode") : null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
+                case "has_organ" -> new EffectDefinition.Condition(
+                        "has_organ",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        GsonHelper.getAsString(conditionObj, "scope"),
+                        GsonHelper.getAsString(conditionObj, "body_part", null),
+                        conditionObj.has("slot") ? GsonHelper.getAsInt(conditionObj, "slot") : null,
+                        normalizeId(GsonHelper.getAsString(conditionObj, "organ"), fileId.getNamespace(), false)
+                );
+                default -> throw new IllegalArgumentException("Unknown condition type: " + type);
+            };
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Condition " + conditionIndex + " of effect " + effectIndex + " in " + fileId + " is invalid: " + e.getMessage(), e);
+        }
+    }
+
+    private static String readOperator(JsonObject conditionObj) {
+        return GsonHelper.getAsString(conditionObj, "op");
     }
 
     private static List<EffectDefinition.Grant> readGrants(JsonObject effectObj, String defaultNamespace) {
-        JsonArray grantsArray;
-        if (effectObj.has("grants")) {
-            grantsArray = GsonHelper.getAsJsonArray(effectObj, "grants");
-        } else if (effectObj.has("points")) {
-            grantsArray = GsonHelper.getAsJsonArray(effectObj, "points");
-        } else {
-            grantsArray = new JsonArray();
+        if (!effectObj.has("grants")) {
+            return List.of();
         }
-
+        JsonArray grantsArray = GsonHelper.getAsJsonArray(effectObj, "grants");
         List<EffectDefinition.Grant> grants = new ArrayList<>();
         for (JsonElement grantElement : grantsArray) {
             if (!grantElement.isJsonObject()) {
@@ -135,31 +227,126 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
             }
             JsonObject grantObj = grantElement.getAsJsonObject();
             String type = GsonHelper.getAsString(grantObj, "type");
-            String id = readGrantId(grantObj, type, defaultNamespace);
+            String id = readPointId(grantObj, type, defaultNamespace);
             long amount = GsonHelper.getAsLong(grantObj, "amount", 0L);
             grants.add(new EffectDefinition.Grant(type, id, amount));
         }
         return grants;
     }
 
-    private static String readGrantId(JsonObject grantObj, String type, String defaultNamespace) {
-        if (grantObj.has("id")) {
-            return normalizeId(GsonHelper.getAsString(grantObj, "id"), defaultNamespace);
+    private static List<EffectDefinition.EventRule> readEvents(JsonObject effectObj, ResourceLocation fileId, int effectIndex, String defaultNamespace) {
+        if (!effectObj.has("events")) {
+            return List.of();
         }
-        if (grantObj.has("target")) {
-            return normalizeId(GsonHelper.getAsString(grantObj, "target"), defaultNamespace);
+        JsonArray eventsArray = GsonHelper.getAsJsonArray(effectObj, "events");
+        List<EffectDefinition.EventRule> events = new ArrayList<>();
+        for (int index = 0; index < eventsArray.size(); index++) {
+            JsonElement eventElement = eventsArray.get(index);
+            if (!eventElement.isJsonObject()) {
+                LOGGER.warn("Skipping non-object event {} for effect {} in {}", index, effectIndex, fileId);
+                continue;
+            }
+            try {
+                events.add(readEventRule(eventElement.getAsJsonObject(), defaultNamespace));
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Event " + index + " of effect " + effectIndex + " in " + fileId + " is invalid: " + e.getMessage(), e);
+            }
+        }
+        return events;
+    }
+
+    private static EffectDefinition.EventRule readEventRule(JsonObject eventObj, String defaultNamespace) {
+        String type = GsonHelper.getAsString(eventObj, "type");
+        Long distance = eventObj.has("distance") ? GsonHelper.getAsLong(eventObj, "distance") : null;
+        String source = GsonHelper.getAsString(eventObj, "source", null);
+        String item = eventObj.has("item") ? normalizeId(GsonHelper.getAsString(eventObj, "item"), defaultNamespace, false) : null;
+        String itemTag = GsonHelper.getAsString(eventObj, "item_tag", null);
+        String block = eventObj.has("block") ? normalizeId(GsonHelper.getAsString(eventObj, "block"), defaultNamespace, false) : null;
+        String blockTag = GsonHelper.getAsString(eventObj, "block_tag", null);
+        boolean foodOnly = GsonHelper.getAsBoolean(eventObj, "food_only", false);
+        List<EffectDefinition.PointMutation> addPoints = readPointMutations(eventObj, "add_points", defaultNamespace);
+        List<EffectDefinition.PointMutation> consumePoints = readPointMutations(eventObj, "consume_points", defaultNamespace);
+        List<EffectDefinition.BonusAction> actions = readBonusActions(eventObj, defaultNamespace);
+        return new EffectDefinition.EventRule(type, distance, source, item, itemTag, block, blockTag, foodOnly, addPoints, consumePoints, actions);
+    }
+
+    private static List<EffectDefinition.PointMutation> readPointMutations(JsonObject eventObj, String fieldName, String defaultNamespace) {
+        if (!eventObj.has(fieldName)) {
+            return List.of();
+        }
+        JsonArray mutationsArray = GsonHelper.getAsJsonArray(eventObj, fieldName);
+        List<EffectDefinition.PointMutation> mutations = new ArrayList<>();
+        for (JsonElement mutationElement : mutationsArray) {
+            if (!mutationElement.isJsonObject()) {
+                continue;
+            }
+            JsonObject mutationObj = mutationElement.getAsJsonObject();
+            String type = GsonHelper.getAsString(mutationObj, "type");
+            String id = readPointId(mutationObj, type, defaultNamespace);
+            long amount = GsonHelper.getAsLong(mutationObj, "amount", 0L);
+            String source = GsonHelper.getAsString(mutationObj, "source", null);
+            EffectDefinition.ChanceConfig chance = readChanceConfig(mutationObj);
+            mutations.add(new EffectDefinition.PointMutation(type, id, amount, source, chance));
+        }
+        return mutations;
+    }
+
+    private static EffectDefinition.ChanceConfig readChanceConfig(JsonObject mutationObj) {
+        if (!mutationObj.has("chance")) {
+            return null;
+        }
+        JsonObject chanceObj = GsonHelper.getAsJsonObject(mutationObj, "chance");
+        Double base = chanceObj.has("base") ? GsonHelper.getAsDouble(chanceObj, "base") : null;
+        Double luckyStep = chanceObj.has("lucky_step") ? GsonHelper.getAsDouble(chanceObj, "lucky_step") : null;
+        Double max = chanceObj.has("max") ? GsonHelper.getAsDouble(chanceObj, "max") : null;
+        return new EffectDefinition.ChanceConfig(base, luckyStep, max);
+    }
+
+    private static List<EffectDefinition.BonusAction> readBonusActions(JsonObject eventObj, String defaultNamespace) {
+        if (!eventObj.has("actions")) {
+            return List.of();
+        }
+        JsonArray actionArray = GsonHelper.getAsJsonArray(eventObj, "actions");
+        List<EffectDefinition.BonusAction> actions = new ArrayList<>();
+        for (JsonElement actionElement : actionArray) {
+            if (!actionElement.isJsonObject()) {
+                continue;
+            }
+            JsonObject actionObj = actionElement.getAsJsonObject();
+            String type = GsonHelper.getAsString(actionObj, "type");
+            double amountPerPoint = GsonHelper.getAsDouble(actionObj, "amount_per_point", 0.0D);
+            String pointType = GsonHelper.getAsString(actionObj, "point_type", "counter");
+            String pointId = readPointId(actionObj, pointType, defaultNamespace, "point_id");
+            String source = GsonHelper.getAsString(actionObj, "source", null);
+            long maxConsume = GsonHelper.getAsLong(actionObj, "max_consume", Long.MAX_VALUE);
+            actions.add(new EffectDefinition.BonusAction(type, amountPerPoint, pointType, pointId, source, maxConsume));
+        }
+        return actions;
+    }
+
+    private static String readPointId(JsonObject obj, String type, String defaultNamespace) {
+        return readPointId(obj, type, defaultNamespace, null);
+    }
+
+    private static String readPointId(JsonObject obj, String type, String defaultNamespace, String explicitIdField) {
+        if (explicitIdField != null && obj.has(explicitIdField)) {
+            return normalizeId(GsonHelper.getAsString(obj, explicitIdField), defaultNamespace, "attribute".equals(type));
+        }
+        if (obj.has("id")) {
+            return normalizeId(GsonHelper.getAsString(obj, "id"), defaultNamespace, "attribute".equals(type));
         }
         return switch (type) {
-            case "attribute" -> normalizeId(GsonHelper.getAsString(grantObj, "attribute"), defaultNamespace);
-            case "skill" -> normalizeId(GsonHelper.getAsString(grantObj, "skill_name"), defaultNamespace);
-            default -> normalizeId(GsonHelper.getAsString(grantObj, "key", "unknown"), defaultNamespace);
+            case "attribute" -> normalizeId(GsonHelper.getAsString(obj, "attribute"), defaultNamespace, true);
+            case "skill" -> normalizeId(GsonHelper.getAsString(obj, "skill_name"), defaultNamespace, false);
+            default -> normalizeId(GsonHelper.getAsString(obj, "key", "unknown"), defaultNamespace, false);
         };
     }
 
-    private static String normalizeId(String rawId, String defaultNamespace) {
+    private static String normalizeId(String rawId, String defaultNamespace, boolean preferMinecraftNamespace) {
         if (rawId.indexOf(':') >= 0) {
             return rawId;
         }
-        return ResourceLocation.fromNamespaceAndPath(defaultNamespace, rawId).toString();
+        String namespace = preferMinecraftNamespace ? "minecraft" : defaultNamespace;
+        return ResourceLocation.fromNamespaceAndPath(namespace, rawId).toString();
     }
 }

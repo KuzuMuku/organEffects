@@ -62,6 +62,8 @@ Organ API 是一个基于 Forge 1.20.1 的器官/部位容器基础模组，目�
 
 ## 开发者文档
 
+- 器官效果 JSON：`docs/organ-effect-json-guide.md`
+
 - 器官控制 API 示例：`docs/organ-control-api-guide.md`
 - 数据格式说明：`docs/organ-data-format.md`
 

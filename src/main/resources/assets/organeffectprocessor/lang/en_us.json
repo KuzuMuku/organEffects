@@ -5,8 +5,10 @@
   "item.organeffectprocessor.effect_point_viewer": "Effect Point Viewer",
   "message.organeffectprocessor.points.header": "Current Effect Points",
   "message.organeffectprocessor.points.empty": "You currently have no effect points.",
+  "message.organeffectprocessor.points.sources": "Point Sources",
   "message.organeffectprocessor.points.group.attribute": "Attributes",
   "message.organeffectprocessor.points.group.skill": "Skills",
+  "message.organeffectprocessor.points.group.counter": "Counters",
   "message.organeffectprocessor.points.group.unknown": "Other",
   "message.organeffectprocessor.skill.none": "You do not currently have any active skills.",
   "message.organeffectprocessor.skill.cast": "Cast: %s",
@@ -28,5 +30,13 @@
   "point.organeffectprocessor.skill.organeffectprocessor.water_breathing": "Water Breathing",
   "point.organeffectprocessor.skill.organeffectprocessor.water_breathing.desc": "Grants access to a water-breathing active skill.",
   "point.organeffectprocessor.skill.organeffectprocessor.double_jump": "Double Jump",
-  "point.organeffectprocessor.skill.organeffectprocessor.double_jump.desc": "Grants access to a mid-air second jump skill."
+  "point.organeffectprocessor.skill.organeffectprocessor.double_jump.desc": "Grants access to a mid-air second jump skill.",
+  "point.organeffectprocessor.counter.organeffectprocessor.charge": "Charge",
+  "point.organeffectprocessor.counter.organeffectprocessor.charge.desc": "Stored momentum charge built up by movement.",
+  "point.organeffectprocessor.counter.organeffectprocessor.food_charge": "Food Charge",
+  "point.organeffectprocessor.counter.organeffectprocessor.food_charge.desc": "A temporary charge gained from eating.",
+  "point.organeffectprocessor.counter.organeffectprocessor.focus": "Focus",
+  "point.organeffectprocessor.counter.organeffectprocessor.focus.desc": "A temporary focus stack gained from using certain items.",
+  "point.organeffectprocessor.counter.organeffectprocessor.miner_instinct": "Miner Instinct",
+  "point.organeffectprocessor.counter.organeffectprocessor.miner_instinct.desc": "A temporary stack gained from mining activity."
 }
