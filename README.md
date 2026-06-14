@@ -1,72 +1,111 @@
-# Organ API
+# Organ Effect Processor
 
-Organ API 是一个基于 Forge 1.20.1 的器官/部位容器基础模组，目标是提供一个尽量简单、原版风格、便于二次开发的 API，而不是内置大量固定器官内容。
+Organ Effect Processor (OEP) is a Forge 1.20.1 addon built on top of the sibling `../organAPI` workspace. OrganAPI owns anatomy, body parts, organ storage, and menus; OEP interprets organ `effects[]` blocks and turns them into a layered point pool.
 
-## 当前实现
+## Core model
 
-- 数据驱动的 body part 模板：定义部位默认容量、标签限制、UI 布局倾向与总览区域
-- 数据驱动的 body plan：按实体类型决定实际拥有的部位集合、容量覆盖与渲染区域覆盖
-- 实体级 organ holder：玩家与其他实体都可以持有器官状态
-- target-aware 器官菜单：viewer 与 target 分离，菜单可编辑目标实体而非仅操作者自己
-- 两套现有 UI 流程：
-  - `organ_pouch` / `chest_opener` -> 部位选择 -> 便携器官编辑
-  - `surgery_room` -> 总览式器官编辑
-- 屠宰玩法入口：
-  - `slaughter_room`：目标生物站在方块正上方且满足低血量条件时打开总览 UI
-  - `slaughter_tool`：直接对低血量生物打开同一总览 UI
-- 示例器官、扩容道具、样例数据与基础同步逻辑
+OEP keeps organ logic dependency-light by using points as the bridge between triggers and effects:
 
-## 数据目录
+- `conditions` + `grants` produce static points during recomputation.
+- `events` respond to runtime player actions and mutate runtime/source points.
+- `executions` read or consume points and produce visible effects.
+- Java extension APIs let compat submods add custom point producers/executors without adding optional dependencies to OEP itself.
 
-- `data/<namespace>/organapi/body_parts/*.json`
-- `data/<namespace>/organapi/body_plans/*.json`
-- `data/<namespace>/organapi/organs/*.json`
+Example point keys:
 
-## API 设计目标
+- `attribute:minecraft:luck`
+- `skill:organeffectprocessor:wonder_sight`
+- `counter:organeffectprocessor:charge`
+- `runtime:organeffectprocessor:storm_insight_token`
 
-- 查询部位模板、实体 body plan 与器官定义
-- 查询目标实体每个部位的容量 / 已安装器官
-- 校验并安装、替换、移除器官
-- 游戏内永久扩展目标部位容量
-- 方便其他模组通过 JSON 或代码接入实体 anatomy 与器官逻辑
+## Build
 
-## Configuration
+From this repository:
 
-模组使用 Forge common config，当前屠宰相关参数位于 `slaughter` 分组下，可调整：
+```bash
+./gradlew compileJava
+```
 
-- `health_threshold_ratio`：允许开胸的血量比例阈值
-- `restriction_duration_ticks`：开胸后限制效果持续时间（tick）
-- `slowness_amplifier`：缓慢效果强度
-- `weakness_amplifier`：虚弱效果强度
+If the local OrganAPI dependency is stale, rebuild it first:
 
-说明：Minecraft 原生效果 amplifier 语义为 `0 = I 级`，`1 = II 级`，依此类推。`slaughter_room` 与 `slaughter_tool` 共享同一组配置。
+```bash
+cd ../organAPI && ./gradlew compileJava jar
+```
 
-## 交互流概览
+Then rebuild OEP.
 
-### 便携器官编辑
+## Important directories
 
-- `OrganPouchItem` / `chest_opener` 打开 `BodyPartSelectionMenu`
-- 玩家在 body map 上选中部位后，通过 `OpenOrganMenuC2SPacket` 打开 `OrganMenu`
-- `OrganMenu` 对当前 target 实体的对应部位进行编辑
+- Java source: `src/main/java/cn/kuzuanpa/organeffectprocessor/`
+- Public API model: `src/main/java/cn/kuzuanpa/organeffectprocessor/api/`
+- Java extension API: `src/main/java/cn/kuzuanpa/organeffectprocessor/api/extension/`
+- Runtime effect flow: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/effect/`
+- Capability point storage: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/capability/`
+- Organ item registration: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/registry/OepItems.java`
+- Organ JSON: `src/main/resources/data/organeffectprocessor/organapi/organs/`
+- Organ item placement tag: `src/main/resources/data/organapi/tags/items/organs.json`
+- Localizations: `src/main/resources/assets/organeffectprocessor/lang/en_us.json`
 
-### 手术室总览
+## Runtime flow
 
-- `SurgeryRoomBlock` 打开 `OrganOverviewMenu`
-- 界面显示目标实体所有可见部位区域与编辑格子
-- 点击区域切换当前编辑的 body part
+1. OrganAPI commits an organ state change.
+2. `ServerEventHandler` calls `EffectRecalculationService.recompute(...)`.
+3. OEP evaluates installed organ JSON effects and registered Java point producers.
+4. Results are written into `IEffectHolder` source layers.
+5. Attribute modifiers, skill availability, and runtime executors are updated.
+6. `EffectPointViewerItem` can force recompute and print point groups for debugging.
 
-### 屠宰入口
+## Java extension API
 
-- `SlaughterRoomBlock`：查找方块正上方活着的 `LivingEntity`，若其当前血量比例 `<= slaughter.health_threshold_ratio`，则施加限制效果并打开 `OrganOverviewMenu`
-- `SlaughterToolItem`：直接右键 `LivingEntity`，若满足同一低血量条件，则施加限制效果并打开 `OrganOverviewMenu`
+Use the extension API when JSON alone is not enough, especially for compat submods that depend on other mods.
 
-## 开发者文档
+Key classes:
 
-- 器官效果 JSON：`docs/organ-effect-json-guide.md`
+- `OepExtensionApi`
+- `PointProducer`
+- `PointExecutor`
+- `SkillExecutor`
 
-- 器官控制 API 示例：`docs/organ-control-api-guide.md`
-- 数据格式说明：`docs/organ-data-format.md`
+Typical compat pattern:
 
-## 示例内容说明
+```java
+OepExtensionApi.registerPointProducer(new CreateStressProducer());
+OepExtensionApi.registerPointExecutor(new CreateChargeBurstExecutor());
+SkillManager.registerSkill(...);
+SkillManager.registerSkillExecutor("compatmod:rotational_overdrive", (player, level) -> {
+    // external-mod-aware behavior lives in the compat submod
+    return true;
+});
+```
 
-仓库内自带的 `sample_*` 器官、`*_expansion_kit`、`surgery_room`、`slaughter_room`、`slaughter_tool` 都主要用于演示链路与默认玩法。其他模组可以只依赖 API、JSON loader 与菜单/同步逻辑，而不依赖这些样例内容。
+The main OEP mod should not import Create or other optional mod APIs. A compat submod should depend on OEP plus the external mod, inspect external state, then contribute/consume OEP points.
+
+## Sample organs
+
+Current sample organs live under `src/main/resources/data/organeffectprocessor/organapi/organs/`.
+
+`wonder_eye_of_storm` demonstrates a progressive organ:
+
+- static base reward: luck
+- rain + night bonus: movement speed
+- rain + night runtime trigger: viewer use creates a storm token
+- execution: token grants night vision
+
+## Developer docs
+
+- Effect JSON guide: `docs/organ-effect-json-guide.md`
+- Repo/agent guide: `CLAUDE.md`
+- Claude skills:
+  - `oep-onboarding`
+  - `workspace-context`
+  - `quick-organ-development`
+
+## Quick organ checklist
+
+1. Register an `OepOrganItem` in `OepItems`.
+2. Add `data/organeffectprocessor/organapi/organs/<organ>.json`.
+3. Add the item ID to `data/organapi/tags/items/organs.json`.
+4. Add item/point/skill localization keys.
+5. If granting a skill, register skill metadata and a skill executor.
+6. Run `./gradlew compileJava`.
+7. Install the organ and inspect points with `effect_point_viewer`.
