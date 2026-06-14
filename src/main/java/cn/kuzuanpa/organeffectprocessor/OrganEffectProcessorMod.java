@@ -2,6 +2,7 @@ package cn.kuzuanpa.organeffectprocessor;
 
 import cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi;
 import cn.kuzuanpa.organeffectprocessor.common.data.OrganEffectData;
+import cn.kuzuanpa.organeffectprocessor.common.event.ClientTooltipHandler;
 import cn.kuzuanpa.organeffectprocessor.common.event.ServerEventHandler;
 import cn.kuzuanpa.organeffectprocessor.common.network.OepNetwork;
 import cn.kuzuanpa.organeffectprocessor.common.registry.OepItems;
@@ -26,6 +27,7 @@ public class OrganEffectProcessorMod {
         OepNetwork.register();
         SkillManager.registerDefaults();
         MinecraftForge.EVENT_BUS.register(new ServerEventHandler());
+        MinecraftForge.EVENT_BUS.register(new ClientTooltipHandler());
         MinecraftForge.EVENT_BUS.addListener(this::onAddReloadListeners);
     }
 
