@@ -5,12 +5,14 @@ import java.util.List;
 public record EffectDefinition(
         List<Condition> conditions,
         List<Grant> grants,
-        List<EventRule> events
+        List<EventRule> events,
+        List<BonusAction> executions
 ) {
     public EffectDefinition {
         conditions = List.copyOf(conditions);
         grants = List.copyOf(grants);
         events = List.copyOf(events);
+        executions = List.copyOf(executions);
     }
 
     public record Condition(
@@ -57,7 +59,8 @@ public record EffectDefinition(
             String id,
             long amount,
             String source,
-            ChanceConfig chance
+            ChanceConfig chance,
+            Integer durationTicks
     ) {
     }
 
@@ -70,11 +73,35 @@ public record EffectDefinition(
 
     public record BonusAction(
             String type,
-            double amountPerPoint,
+            Double amount,
+            Double amountPerPoint,
             String pointType,
             String pointId,
             String source,
-            long maxConsume
+            long maxConsume,
+            boolean consumePoints,
+            String damageKind,
+            String effectId,
+            Integer durationTicks,
+            Integer amplifier,
+            String target,
+            List<ItemEntry> items,
+            int rolls,
+            boolean unique,
+            boolean dropIfFull,
+            String pointOperation,
+            Long pointAmount,
+            ChanceConfig chance
+    ) {
+        public BonusAction {
+            items = items == null ? List.of() : List.copyOf(items);
+        }
+    }
+
+    public record ItemEntry(
+            String itemId,
+            int count,
+            int weight
     ) {
     }
 }

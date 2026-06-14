@@ -25,6 +25,8 @@ public final class OepItems {
             () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_leg_muscle"));
     public static final RegistryObject<Item> WONDER_TENDON = ITEMS.register("wonder_tendon",
             () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_tendon"));
+    public static final RegistryObject<Item> WONDER_EYE_OF_STORM = ITEMS.register("wonder_eye_of_storm",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_eye_of_storm"));
 
     private OepItems() {}
 }

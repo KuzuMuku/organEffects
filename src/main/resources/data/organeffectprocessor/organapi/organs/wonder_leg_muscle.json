@@ -14,7 +14,7 @@
       "grants": [
         {
           "type": "attribute",
-          "attribute": "jump_strength",
+          "attribute": "movement_speed",
           "amount": 1
         }
       ],
@@ -29,8 +29,21 @@
               "id": "charge",
               "amount": 1,
               "source": "self"
+            },
+            {
+              "type": "runtime",
+              "id": "leg_recovery_pulse",
+              "amount": 1,
+              "source": "self",
+              "chance": {
+                "base": 0.08,
+                "lucky_step": 0.03,
+                "max": 0.25
+              },
+              "duration_ticks": 2
             }
           ],
+          "consume_points": [],
           "actions": []
         },
         {
@@ -48,6 +61,16 @@
               "max_consume": 999999
             }
           ]
+        }
+      ],
+      "executions": [
+        {
+          "type": "heal",
+          "point_type": "runtime",
+          "point_id": "leg_recovery_pulse",
+          "amount": 1.0,
+          "consume_points": true,
+          "max_consume": 1
         }
       ]
     },
@@ -86,7 +109,8 @@
           "consume_points": [],
           "actions": []
         }
-      ]
+      ],
+      "executions": []
     }
   ]
 }

@@ -6,26 +6,68 @@
   "tags": ["wonder", "respiratory"],
   "effects": [
     {
-      "condition": "static",
-      "limit": 0,
-      "points": [
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [
         {
           "type": "attribute",
-          "attribute": "minecraft:oxygen_bonus",
+          "attribute": "luck",
           "amount": 1
+        }
+      ],
+      "events": [
+        {
+          "type": "mine",
+          "add_points": [
+            {
+              "type": "runtime",
+              "id": "mining_momentum",
+              "amount": 1,
+              "chance": {
+                "base": 0.25,
+                "lucky_step": 0.08,
+                "max": 0.7
+              },
+              "duration_ticks": 60
+            }
+          ],
+          "consume_points": [],
+          "actions": []
+        }
+      ],
+      "executions": [
+        {
+          "type": "apply_mob_effect",
+          "point_type": "runtime",
+          "point_id": "mining_momentum",
+          "effect": "minecraft:haste",
+          "duration_ticks": 40,
+          "amplifier": 0,
+          "consume_points": false,
+          "max_consume": 1
         }
       ]
     },
     {
-      "condition": "exactPos",
-      "limit": 0,
-      "points": [
+      "conditions": [
+        {
+          "type": "slot_index",
+          "op": "eq",
+          "value": 0
+        }
+      ],
+      "grants": [
         {
           "type": "skill",
           "skill_name": "water_breathing",
           "amount": 1
         }
-      ]
+      ],
+      "events": [],
+      "executions": []
     }
   ]
 }

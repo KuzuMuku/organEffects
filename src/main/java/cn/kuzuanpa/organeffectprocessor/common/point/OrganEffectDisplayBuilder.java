@@ -1,0 +1,380 @@
+package cn.kuzuanpa.organeffectprocessor.common.point;
+
+import cn.kuzuanpa.organapi.api.organ.OrganDefinition;
+import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraftforge.registries.ForgeRegistries;
+
+public final class OrganEffectDisplayBuilder {
+    private static final int DEFAULT_TOOLTIP_LINES = 4;
+
+    private OrganEffectDisplayBuilder() {
+    }
+
+    public static List<Component> buildViewerEffectLines(OrganDefinition definition, List<EffectDefinition> effects) {
+        List<Component> lines = new ArrayList<>();
+        for (EffectDefinition effect : effects) {
+            appendGrantLines(lines, effect.conditions(), effect.grants(), true);
+            appendEventLines(lines, effect.conditions(), effect.events());
+            appendExecutionLines(lines, effect.conditions(), effect.executions());
+        }
+        if (lines.isEmpty()) {
+            return List.of();
+        }
+        List<Component> result = new ArrayList<>();
+        result.add(getOrganHeader(definition));
+        result.addAll(lines);
+        return result;
+    }
+
+    public static List<Component> buildTooltipLines(OrganDefinition definition, List<EffectDefinition> effects, boolean expanded) {
+        List<Component> allLines = new ArrayList<>();
+        for (String tooltip : definition.tooltips()) {
+            allLines.add(Component.literal(tooltip).withStyle(ChatFormatting.GRAY));
+        }
+
+        List<Component> effectLines = new ArrayList<>();
+        for (EffectDefinition effect : effects) {
+            appendGrantLines(effectLines, effect.conditions(), effect.grants(), false);
+            appendEventLines(effectLines, effect.conditions(), effect.events());
+            appendExecutionLines(effectLines, effect.conditions(), effect.executions());
+        }
+        if (effectLines.isEmpty()) {
+            return allLines;
+        }
+
+        allLines.add(Component.translatable("message.organeffectprocessor.effects.tooltip.header").withStyle(ChatFormatting.AQUA));
+        if (expanded) {
+            allLines.addAll(effectLines);
+            allLines.add(Component.translatable("message.organeffectprocessor.effects.tooltip.expanded").withStyle(ChatFormatting.DARK_GRAY));
+            return allLines;
+        }
+
+        int visibleCount = Math.min(DEFAULT_TOOLTIP_LINES, effectLines.size());
+        for (int index = 0; index < visibleCount; index++) {
+            allLines.add(effectLines.get(index));
+        }
+        if (effectLines.size() > visibleCount) {
+            allLines.add(Component.translatable("message.organeffectprocessor.effects.tooltip.more", effectLines.size() - visibleCount)
+                    .withStyle(ChatFormatting.DARK_GRAY));
+        }
+        allLines.add(Component.translatable("message.organeffectprocessor.effects.tooltip.hold_shift").withStyle(ChatFormatting.DARK_GRAY));
+        return allLines;
+    }
+
+    public static Component getOrganHeader(OrganDefinition definition) {
+        MutableComponent name = Component.translatable("item." + definition.itemId().getNamespace() + "." + definition.itemId().getPath());
+        if (name.getString().equals("item." + definition.itemId().getNamespace() + "." + definition.itemId().getPath())) {
+            Item item = ForgeRegistries.ITEMS.getValue(definition.itemId());
+            if (item != null) {
+                name = item.getDescription().copy();
+            }
+        }
+        return Component.literal("- ").append(name.withStyle(ChatFormatting.AQUA));
+    }
+
+    private static void appendGrantLines(List<Component> target, List<EffectDefinition.Condition> conditions,
+                                         List<EffectDefinition.Grant> grants, boolean includeConditionlessHeader) {
+        if (grants.isEmpty()) {
+            return;
+        }
+        MutableComponent prefix = describeConditionPrefix(conditions, includeConditionlessHeader);
+        for (EffectDefinition.Grant grant : grants) {
+            Component point = formatPointAmount(grant.type(), grant.id(), grant.amount());
+            target.add(withHover(prefix.copy().append(Component.translatable("message.organeffectprocessor.effects.provides", point)),
+                    buildConditionHover(conditions)));
+        }
+    }
+
+    private static void appendEventLines(List<Component> target, List<EffectDefinition.Condition> conditions, List<EffectDefinition.EventRule> events) {
+        for (EffectDefinition.EventRule event : events) {
+            List<Component> pieces = new ArrayList<>();
+            for (EffectDefinition.PointMutation mutation : event.addPoints()) {
+                pieces.add(Component.translatable("message.organeffectprocessor.effects.gains",
+                        formatPointAmount(mutation.type(), mutation.id(), mutation.amount())));
+            }
+            for (EffectDefinition.PointMutation mutation : event.consumePoints()) {
+                pieces.add(Component.translatable("message.organeffectprocessor.effects.consumes",
+                        formatPointAmount(mutation.type(), mutation.id(), mutation.amount())));
+            }
+            for (EffectDefinition.BonusAction action : event.actions()) {
+                pieces.add(describeAction(action));
+            }
+            if (pieces.isEmpty()) {
+                continue;
+            }
+            MutableComponent prefix = describeConditionPrefix(conditions, false)
+                    .append(Component.translatable("message.organeffectprocessor.effects.on_event", describeEvent(event)).withStyle(ChatFormatting.YELLOW))
+                    .append(Component.literal(": ").withStyle(ChatFormatting.GRAY));
+            Component body = joinComponents(pieces);
+            target.add(withHover(prefix.append(body), buildEventHover(conditions, event)));
+        }
+    }
+
+    private static void appendExecutionLines(List<Component> target, List<EffectDefinition.Condition> conditions, List<EffectDefinition.BonusAction> executions) {
+        for (EffectDefinition.BonusAction execution : executions) {
+            MutableComponent prefix = describeConditionPrefix(conditions, false)
+                    .append(Component.translatable("message.organeffectprocessor.effects.when_points", describePointBinding(execution)).withStyle(ChatFormatting.YELLOW))
+                    .append(Component.literal(": ").withStyle(ChatFormatting.GRAY));
+            target.add(withHover(prefix.append(describeAction(execution)), buildExecutionHover(conditions, execution)));
+        }
+    }
+
+    private static MutableComponent describeConditionPrefix(List<EffectDefinition.Condition> conditions, boolean includeAlways) {
+        List<Component> readableConditions = describeConditions(conditions);
+        if (readableConditions.isEmpty()) {
+            return includeAlways
+                    ? Component.translatable("message.organeffectprocessor.effects.always_prefix").withStyle(ChatFormatting.YELLOW)
+                    : Component.empty();
+        }
+        return Component.translatable("message.organeffectprocessor.effects.when_prefix", joinComponents(readableConditions))
+                .withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY));
+    }
+
+    private static List<Component> describeConditions(List<EffectDefinition.Condition> conditions) {
+        List<Component> readable = new ArrayList<>();
+        for (EffectDefinition.Condition condition : conditions) {
+            if (condition == null || Objects.equals(condition.type(), "static")) {
+                continue;
+            }
+            readable.add(describeCondition(condition));
+        }
+        return readable;
+    }
+
+    private static Component describeCondition(EffectDefinition.Condition condition) {
+        return switch (condition.type()) {
+            case "slot_index" -> Component.translatable("message.organeffectprocessor.effects.condition.slot_index",
+                    formatOperator(condition.operator()), valueOf(condition.value()));
+            case "distance_to_edge" -> Component.translatable("message.organeffectprocessor.effects.condition.distance_to_edge",
+                    translateKey("message.organeffectprocessor.effects.edge.", condition.edge()),
+                    formatOperator(condition.operator()), valueOf(condition.value()));
+            case "weather" -> Component.translatable("message.organeffectprocessor.effects.condition.weather",
+                    translateKey("message.organeffectprocessor.effects.weather.", condition.weather()));
+            case "time" -> describeTimeCondition(condition);
+            case "has_organ" -> Component.translatable("message.organeffectprocessor.effects.condition.has_organ",
+                    translateScope(condition.scope()), describeOrganId(condition.organ()));
+            default -> Component.literal(condition.type());
+        };
+    }
+
+    private static Component describeTimeCondition(EffectDefinition.Condition condition) {
+        if (condition.time() != null) {
+            return Component.translatable("message.organeffectprocessor.effects.condition.time_mode",
+                    translateKey("message.organeffectprocessor.effects.time.", condition.time()));
+        }
+        if (condition.min() != null || condition.max() != null) {
+            return Component.translatable("message.organeffectprocessor.effects.condition.time_range",
+                    valueOf(condition.min()), valueOf(condition.max()));
+        }
+        return Component.translatable("message.organeffectprocessor.effects.condition.time_value",
+                formatOperator(condition.operator()), valueOf(condition.value()));
+    }
+
+    private static Component describeEvent(EffectDefinition.EventRule event) {
+        MutableComponent eventName = translateKey("message.organeffectprocessor.effects.event.", event.type());
+        List<Component> filters = new ArrayList<>();
+        if (event.foodOnly()) {
+            filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.food_only"));
+        }
+        if (event.item() != null) {
+            filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.item", describeItemId(event.item())));
+        }
+        if (event.itemTag() != null) {
+            filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.item_tag", event.itemTag()));
+        }
+        if (event.block() != null) {
+            filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.block", describeBlockId(event.block())));
+        }
+        if (event.blockTag() != null) {
+            filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.block_tag", event.blockTag()));
+        }
+        if (event.distance() != null) {
+            filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.distance", event.distance()));
+        }
+        if (filters.isEmpty()) {
+            return eventName;
+        }
+        return eventName.append(Component.literal(" (" + joinPlain(filters) + ")"));
+    }
+
+    private static Component describeAction(EffectDefinition.BonusAction action) {
+        return switch (action.type()) {
+            case "apply_mob_effect" -> Component.translatable("message.organeffectprocessor.effects.action.apply_mob_effect",
+                    describeMobEffect(action.effectId()), valueOf(action.durationTicks()), valueOf(action.amplifier()));
+            case "heal" -> Component.translatable("message.organeffectprocessor.effects.action.heal", valueOf(action.amount()));
+            case "grant_items" -> Component.translatable("message.organeffectprocessor.effects.action.grant_items",
+                    valueOf(action.rolls()), valueOf(action.items().size()));
+            case "bonus_damage_per_point", "modify_damage" -> describeDamageAction(action);
+            case "mutate_points" -> Component.translatable("message.organeffectprocessor.effects.action.mutate_points",
+                    describePointOperation(action.pointOperation()),
+                    formatPointAmount(action.pointType(), action.pointId(), action.pointAmount() != null ? action.pointAmount() : 0L));
+            default -> Component.literal(action.type());
+        };
+    }
+
+    private static Component describeDamageAction(EffectDefinition.BonusAction action) {
+        if (action.amountPerPoint() != null && action.pointType() != null && action.pointId() != null) {
+            return Component.translatable("message.organeffectprocessor.effects.action.damage_per_point",
+                    valueOf(action.amountPerPoint()), describePointBinding(action));
+        }
+        return Component.translatable("message.organeffectprocessor.effects.action.damage_flat", valueOf(action.amount()));
+    }
+
+    private static Component describePointBinding(EffectDefinition.BonusAction action) {
+        if (action.pointType() == null || action.pointId() == null) {
+            return Component.translatable("message.organeffectprocessor.effects.unknown");
+        }
+        MutableComponent binding = EffectPointTextHelper.getDisplayName(action.pointType() + ":" + action.pointId());
+        if (action.maxConsume() > 0L && action.maxConsume() != Long.MAX_VALUE) {
+            binding = binding.append(Component.literal(" x" + action.maxConsume()).withStyle(ChatFormatting.GOLD));
+        }
+        return binding;
+    }
+
+    private static Component buildConditionHover(List<EffectDefinition.Condition> conditions) {
+        List<Component> readableConditions = describeConditions(conditions);
+        if (readableConditions.isEmpty()) {
+            return Component.translatable("message.organeffectprocessor.effects.hover.always");
+        }
+        return Component.translatable("message.organeffectprocessor.effects.hover.conditions", joinComponents(readableConditions));
+    }
+
+    private static Component buildEventHover(List<EffectDefinition.Condition> conditions, EffectDefinition.EventRule event) {
+        MutableComponent hover = Component.empty().append(buildConditionHover(conditions));
+        if (event.source() != null) {
+            hover.append(Component.literal("\n")).append(Component.translatable("message.organeffectprocessor.effects.hover.source", event.source()));
+        }
+        return hover;
+    }
+
+    private static Component buildExecutionHover(List<EffectDefinition.Condition> conditions, EffectDefinition.BonusAction execution) {
+        MutableComponent hover = Component.empty().append(buildConditionHover(conditions));
+        if (execution.consumePoints()) {
+            hover.append(Component.literal("\n")).append(Component.translatable("message.organeffectprocessor.effects.hover.consume_points"));
+        }
+        if (execution.source() != null) {
+            hover.append(Component.literal("\n")).append(Component.translatable("message.organeffectprocessor.effects.hover.source", execution.source()));
+        }
+        return hover;
+    }
+
+    private static Component formatPointAmount(String type, String id, Number amount) {
+        String pointKey = type + ":" + id;
+        return EffectPointTextHelper.getDisplayName(pointKey)
+                .copy()
+                .append(Component.literal(" +" + formatNumber(amount)).withStyle(ChatFormatting.GOLD));
+    }
+
+    private static MutableComponent withHover(MutableComponent line, Component hover) {
+        return line.withStyle(style -> style.withColor(ChatFormatting.GREEN)
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hover)));
+    }
+
+    private static MutableComponent joinComponents(List<Component> parts) {
+        MutableComponent combined = Component.empty();
+        for (int index = 0; index < parts.size(); index++) {
+            if (index > 0) {
+                combined.append(Component.literal(", ").withStyle(ChatFormatting.GRAY));
+            }
+            combined.append(parts.get(index));
+        }
+        return combined;
+    }
+
+    private static String joinPlain(List<Component> parts) {
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < parts.size(); index++) {
+            if (index > 0) {
+                builder.append(", ");
+            }
+            builder.append(parts.get(index).getString());
+        }
+        return builder.toString();
+    }
+
+    private static MutableComponent translateKey(String prefix, String value) {
+        if (value == null || value.isBlank()) {
+            return Component.translatable("message.organeffectprocessor.effects.unknown");
+        }
+        String key = prefix + sanitizeSegment(value);
+        MutableComponent translated = Component.translatable(key);
+        return translated.getString().equals(key) ? Component.literal(value) : translated;
+    }
+
+    private static Component translateScope(String scope) {
+        return translateKey("message.organeffectprocessor.effects.scope.", scope);
+    }
+
+    private static Component formatOperator(String operator) {
+        return translateKey("message.organeffectprocessor.effects.operator.", operator);
+    }
+
+    private static Component describePointOperation(String operation) {
+        return translateKey("message.organeffectprocessor.effects.point_operation.", operation);
+    }
+
+    private static Component describeItemId(String rawId) {
+        ResourceLocation id = ResourceLocation.tryParse(rawId);
+        if (id == null) {
+            return Component.literal(rawId);
+        }
+        Item item = ForgeRegistries.ITEMS.getValue(id);
+        return item != null ? item.getDescription() : Component.literal(rawId);
+    }
+
+    private static Component describeBlockId(String rawId) {
+        ResourceLocation id = ResourceLocation.tryParse(rawId);
+        if (id == null) {
+            return Component.literal(rawId);
+        }
+        Block block = ForgeRegistries.BLOCKS.getValue(id);
+        return block != null ? block.getName() : Component.literal(rawId);
+    }
+
+    private static Component describeMobEffect(String rawId) {
+        ResourceLocation id = ResourceLocation.tryParse(rawId);
+        if (id == null) {
+            return Component.literal(rawId);
+        }
+        MobEffect effect = BuiltInRegistries.MOB_EFFECT.get(id);
+        return effect != null ? Component.translatable(effect.getDescriptionId()) : Component.literal(rawId);
+    }
+
+    private static Component describeOrganId(String rawId) {
+        ResourceLocation id = ResourceLocation.tryParse(rawId);
+        return id != null ? Component.literal(id.toString()) : Component.literal(rawId);
+    }
+
+    private static String sanitizeSegment(String value) {
+        return value.toLowerCase(Locale.ROOT).replace(':', '.').replace('/', '.').replace(' ', '_');
+    }
+
+    private static String formatNumber(Number value) {
+        if (value == null) {
+            return "0";
+        }
+        double doubleValue = value.doubleValue();
+        if (Math.floor(doubleValue) == doubleValue) {
+            return Long.toString(value.longValue());
+        }
+        return Double.toString(doubleValue);
+    }
+
+    private static Component valueOf(Number value) {
+        return Component.literal(value == null ? "?" : formatNumber(value));
+    }
+}

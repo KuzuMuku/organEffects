@@ -6,31 +6,29 @@ import cn.kuzuanpa.organeffectprocessor.common.skill.SkillDefinition;
 import cn.kuzuanpa.organeffectprocessor.common.skill.SkillManager;
 import java.util.List;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 
-public class SkillWheelScreen extends Screen {
+public final class SkillWheelScreen {
     private final List<SkillDefinition> skills;
+    private final Component title = Component.translatable("screen.organeffectprocessor.skill_wheel");
     private int selectedIndex;
 
     public SkillWheelScreen(LocalPlayer player) {
-        super(Component.translatable("screen.organeffectprocessor.skill_wheel"));
         this.skills = SkillManager.getAvailableSkills(player);
         this.selectedIndex = resolveInitialIndex(player);
     }
 
-    @Override
-    public boolean isPauseScreen() {
-        return false;
+    public boolean isEmpty() {
+        return skills.isEmpty();
     }
 
-    @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+    public void render(GuiGraphics guiGraphics, int width, int height, int mouseX, int mouseY) {
         int centerX = width / 2;
         int centerY = height / 2;
+        Font font = Minecraft.getInstance().font;
         guiGraphics.fill(0, 0, width, height, 0x66000000);
         guiGraphics.drawCenteredString(font, title, centerX, centerY - 10, 0xFFFFFF);
         if (skills.isEmpty()) {
@@ -57,7 +55,6 @@ public class SkillWheelScreen extends Screen {
         if (!skills.isEmpty()) {
             OepNetwork.sendToServer(new CastSkillC2SPacket(skills.get(selectedIndex).id()));
         }
-        Minecraft.getInstance().setScreen(null);
     }
 
     private int resolveInitialIndex(LocalPlayer player) {

@@ -6,13 +6,71 @@
   "tags": ["wonder", "neural", "advanced"],
   "effects": [
     {
-      "condition": "static",
-      "limit": 0,
-      "points": [
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [
         {
           "type": "attribute",
-          "attribute": "minecraft:movement_speed",
+          "attribute": "movement_speed",
           "amount": 1
+        }
+      ],
+      "events": [
+        {
+          "type": "use_item",
+          "item": "organeffectprocessor:effect_point_viewer",
+          "add_points": [
+            {
+              "type": "runtime",
+              "id": "brain_reward_token",
+              "amount": 1,
+              "chance": {
+                "base": 0.4,
+                "lucky_step": 0.1,
+                "max": 0.9
+              },
+              "duration_ticks": 40
+            }
+          ],
+          "consume_points": [],
+          "actions": []
+        }
+      ],
+      "executions": [
+        {
+          "type": "grant_items",
+          "point_type": "runtime",
+          "point_id": "brain_reward_token",
+          "consume_points": true,
+          "max_consume": 1,
+          "rolls": 2,
+          "unique": true,
+          "drop_if_full": true,
+          "items": [
+            {
+              "item": "minecraft:redstone",
+              "count": 3,
+              "weight": 3
+            },
+            {
+              "item": "minecraft:lapis_lazuli",
+              "count": 2,
+              "weight": 2
+            },
+            {
+              "item": "minecraft:glowstone_dust",
+              "count": 2,
+              "weight": 2
+            },
+            {
+              "item": "minecraft:paper",
+              "count": 4,
+              "weight": 1
+            }
+          ]
         }
       ]
     }

@@ -2,8 +2,10 @@ package cn.kuzuanpa.organeffectprocessor.common.event;
 
 import cn.kuzuanpa.organapi.api.event.OrganStateCommittedEvent;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectHolderProvider;
+import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.effect.EffectRecalculationService;
 import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimeEffectService;
+import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimePointExecutor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +27,8 @@ import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public class ServerEventHandler {
+    private static final int DYNAMIC_RECOMPUTE_INTERVAL = 20;
+
     private final Map<UUID, Vec3> lastPositions = new HashMap<>();
 
     @SubscribeEvent
@@ -65,6 +69,11 @@ public class ServerEventHandler {
             return;
         }
         Player player = event.player;
+        if (player.tickCount % DYNAMIC_RECOMPUTE_INTERVAL == 0) {
+            EffectRecalculationService.recompute(player);
+        } else {
+            RuntimePointExecutor.execute(player);
+        }
         Vec3 current = player.position();
         Vec3 previous = lastPositions.put(player.getUUID(), current);
         if (previous == null) {
@@ -78,9 +87,9 @@ public class ServerEventHandler {
 
     @SubscribeEvent
     public void onLivingHurt(LivingHurtEvent event) {
-        Entity direct = event.getSource().getEntity();
-        if (direct instanceof LivingEntity attacker) {
-            event.setAmount(RuntimeEffectService.handleAttack(attacker, event.getEntity(), event.getAmount()));
+        Entity attackerEntity = event.getSource().getEntity();
+        if (attackerEntity instanceof LivingEntity attacker) {
+            event.setAmount(RuntimeEffectService.handleAttack(attacker, event.getEntity(), event.getSource().getDirectEntity(), event.getAmount()));
         }
     }
 
@@ -96,6 +105,7 @@ public class ServerEventHandler {
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         if (event.getPlayer() != null) {
+            OepDebug.trace(event.getPlayer(), "mine event block=%s", event.getState().getBlock().getDescriptionId());
             RuntimeEffectService.handleMine(event.getPlayer(), event.getState());
         }
     }

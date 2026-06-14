@@ -6,15 +6,38 @@
   "tags": ["wonder", "tendon"],
   "effects": [
     {
-      "condition": "static",
-      "limit": 0,
-      "points": [
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [
         {
           "type": "attribute",
-          "attribute": "minecraft:attack_damage",
+          "attribute": "attack_damage",
           "amount": 1
         }
-      ]
+      ],
+      "events": [
+        {
+          "type": "attack",
+          "add_points": [],
+          "consume_points": [],
+          "actions": [
+            {
+              "type": "modify_damage",
+              "damage_kind": "melee",
+              "amount": 2.0
+            },
+            {
+              "type": "modify_damage",
+              "damage_kind": "projectile",
+              "amount": 1.0
+            }
+          ]
+        }
+      ],
+      "executions": []
     }
   ]
 }

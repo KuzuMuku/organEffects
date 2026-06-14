@@ -72,6 +72,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 if (!definitions.isEmpty()) {
                     ResourceLocation definitionId = toDefinitionId(entry.getKey());
                     result.put(definitionId, definitions);
+                    logWonderLungDebug(definitionId, definitions);
                 }
             } catch (Exception e) {
                 LOGGER.warn("Failed to load organ effect data from {}: {}", entry.getKey(), e.getMessage());
@@ -109,7 +110,8 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         List<EffectDefinition.Condition> conditions = readConditions(effectObj, fileId, effectIndex);
         List<EffectDefinition.Grant> grants = readGrants(effectObj, fileId.getNamespace());
         List<EffectDefinition.EventRule> events = readEvents(effectObj, fileId, effectIndex, fileId.getNamespace());
-        return new EffectDefinition(conditions, grants, events);
+        List<EffectDefinition.BonusAction> executions = readExecutions(effectObj, fileId.getNamespace());
+        return new EffectDefinition(conditions, grants, events, executions);
     }
 
     private static List<EffectDefinition.Condition> readConditions(JsonObject effectObj, ResourceLocation fileId, int effectIndex) {
@@ -286,7 +288,8 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
             long amount = GsonHelper.getAsLong(mutationObj, "amount", 0L);
             String source = GsonHelper.getAsString(mutationObj, "source", null);
             EffectDefinition.ChanceConfig chance = readChanceConfig(mutationObj);
-            mutations.add(new EffectDefinition.PointMutation(type, id, amount, source, chance));
+            Integer durationTicks = mutationObj.has("duration_ticks") ? GsonHelper.getAsInt(mutationObj, "duration_ticks") : null;
+            mutations.add(new EffectDefinition.PointMutation(type, id, amount, source, chance, durationTicks));
         }
         return mutations;
     }
@@ -313,15 +316,91 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 continue;
             }
             JsonObject actionObj = actionElement.getAsJsonObject();
-            String type = GsonHelper.getAsString(actionObj, "type");
-            double amountPerPoint = GsonHelper.getAsDouble(actionObj, "amount_per_point", 0.0D);
-            String pointType = GsonHelper.getAsString(actionObj, "point_type", "counter");
-            String pointId = readPointId(actionObj, pointType, defaultNamespace, "point_id");
-            String source = GsonHelper.getAsString(actionObj, "source", null);
-            long maxConsume = GsonHelper.getAsLong(actionObj, "max_consume", Long.MAX_VALUE);
-            actions.add(new EffectDefinition.BonusAction(type, amountPerPoint, pointType, pointId, source, maxConsume));
+            actions.add(readBonusAction(actionObj, defaultNamespace));
         }
         return actions;
+    }
+
+    private static List<EffectDefinition.BonusAction> readExecutions(JsonObject effectObj, String defaultNamespace) {
+        if (!effectObj.has("executions")) {
+            return List.of();
+        }
+        JsonArray executionArray = GsonHelper.getAsJsonArray(effectObj, "executions");
+        List<EffectDefinition.BonusAction> executions = new ArrayList<>();
+        for (JsonElement executionElement : executionArray) {
+            if (!executionElement.isJsonObject()) {
+                continue;
+            }
+            JsonObject executionObj = executionElement.getAsJsonObject();
+            executions.add(readBonusAction(executionObj, defaultNamespace));
+        }
+        return executions;
+    }
+
+    private static EffectDefinition.BonusAction readBonusAction(JsonObject actionObj, String defaultNamespace) {
+        String type = GsonHelper.getAsString(actionObj, "type");
+        Double amount = actionObj.has("amount") ? GsonHelper.getAsDouble(actionObj, "amount") : null;
+        Double amountPerPoint = actionObj.has("amount_per_point") ? GsonHelper.getAsDouble(actionObj, "amount_per_point") : null;
+        String pointType = GsonHelper.getAsString(actionObj, "point_type", "counter");
+        String pointId = actionObj.has("point_id") || actionObj.has("id") || actionObj.has("attribute") || actionObj.has("skill_name") || actionObj.has("key")
+                ? readPointId(actionObj, pointType, defaultNamespace, "point_id")
+                : null;
+        String source = GsonHelper.getAsString(actionObj, "source", null);
+        long maxConsume = GsonHelper.getAsLong(actionObj, "max_consume", Long.MAX_VALUE);
+        boolean consumePoints = GsonHelper.getAsBoolean(actionObj, "consume_points", "bonus_damage_per_point".equals(type));
+        String damageKind = GsonHelper.getAsString(actionObj, "damage_kind", "bonus_damage_per_point".equals(type) ? "melee" : "any");
+        String effectId = actionObj.has("effect") ? normalizeId(GsonHelper.getAsString(actionObj, "effect"), defaultNamespace, true) : null;
+        Integer durationTicks = actionObj.has("duration_ticks") ? GsonHelper.getAsInt(actionObj, "duration_ticks") : null;
+        Integer amplifier = actionObj.has("amplifier") ? GsonHelper.getAsInt(actionObj, "amplifier") : null;
+        String target = GsonHelper.getAsString(actionObj, "target", "self");
+        List<EffectDefinition.ItemEntry> items = readItemEntries(actionObj, defaultNamespace);
+        int rolls = GsonHelper.getAsInt(actionObj, "rolls", 1);
+        boolean unique = GsonHelper.getAsBoolean(actionObj, "unique", false);
+        boolean dropIfFull = GsonHelper.getAsBoolean(actionObj, "drop_if_full", true);
+        String pointOperation = GsonHelper.getAsString(actionObj, "point_operation", null);
+        Long pointAmount = actionObj.has("point_amount") ? GsonHelper.getAsLong(actionObj, "point_amount") : null;
+        EffectDefinition.ChanceConfig chance = readChanceConfig(actionObj);
+        return new EffectDefinition.BonusAction(
+                type,
+                amount,
+                amountPerPoint,
+                pointId != null ? pointType : null,
+                pointId,
+                source,
+                maxConsume,
+                consumePoints,
+                damageKind,
+                effectId,
+                durationTicks,
+                amplifier,
+                target,
+                items,
+                rolls,
+                unique,
+                dropIfFull,
+                pointOperation,
+                pointAmount,
+                chance
+        );
+    }
+
+    private static List<EffectDefinition.ItemEntry> readItemEntries(JsonObject actionObj, String defaultNamespace) {
+        if (!actionObj.has("items")) {
+            return List.of();
+        }
+        JsonArray itemsArray = GsonHelper.getAsJsonArray(actionObj, "items");
+        List<EffectDefinition.ItemEntry> items = new ArrayList<>();
+        for (JsonElement itemElement : itemsArray) {
+            if (!itemElement.isJsonObject()) {
+                continue;
+            }
+            JsonObject itemObj = itemElement.getAsJsonObject();
+            String itemId = normalizeId(GsonHelper.getAsString(itemObj, "item"), defaultNamespace, false);
+            int count = GsonHelper.getAsInt(itemObj, "count", 1);
+            int weight = Math.max(1, GsonHelper.getAsInt(itemObj, "weight", 1));
+            items.add(new EffectDefinition.ItemEntry(itemId, count, weight));
+        }
+        return items;
     }
 
     private static String readPointId(JsonObject obj, String type, String defaultNamespace) {
@@ -348,5 +427,30 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         }
         String namespace = preferMinecraftNamespace ? "minecraft" : defaultNamespace;
         return ResourceLocation.fromNamespaceAndPath(namespace, rawId).toString();
+    }
+
+    private static void logWonderLungDebug(ResourceLocation definitionId, List<EffectDefinition> definitions) {
+        if (!"organeffectprocessor:wonder_lung".equals(definitionId.toString())) {
+            return;
+        }
+        for (int effectIndex = 0; effectIndex < definitions.size(); effectIndex++) {
+            EffectDefinition effect = definitions.get(effectIndex);
+            for (EffectDefinition.EventRule eventRule : effect.events()) {
+                LOGGER.info("[OEPDBG][load] wonder_lung effect#{} event={} addPoints={} consumePoints={} actions={}",
+                        effectIndex, eventRule.type(), eventRule.addPoints().size(), eventRule.consumePoints().size(), eventRule.actions().size());
+            }
+            for (EffectDefinition.BonusAction execution : effect.executions()) {
+                LOGGER.info("[OEPDBG][load] wonder_lung effect#{} execution type={} point={}:{} consume={} max={} effect={} duration={} amp={}",
+                        effectIndex,
+                        execution.type(),
+                        execution.pointType(),
+                        execution.pointId(),
+                        execution.consumePoints(),
+                        execution.maxConsume(),
+                        execution.effectId(),
+                        execution.durationTicks(),
+                        execution.amplifier());
+            }
+        }
     }
 }

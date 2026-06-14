@@ -9,6 +9,8 @@ import cn.kuzuanpa.organapi.api.query.OrganQueryService;
 import cn.kuzuanpa.organapi.common.body.BodyPlanResolver;
 import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
 import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
+import cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi;
+import cn.kuzuanpa.organeffectprocessor.api.extension.PointProducer;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectPointMap;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
@@ -27,6 +29,7 @@ import net.minecraft.world.entity.player.Player;
 
 public final class EffectRecalculationService {
     public static final String ORGAN_SOURCE = "organ";
+    public static final String ORGAN_INSTANCE_SOURCE_PREFIX = "organ-instance:";
     private static final long DAY_TICKS = 24000L;
 
     private EffectRecalculationService() {
@@ -38,11 +41,17 @@ public final class EffectRecalculationService {
             return Map.of();
         }
 
+        EvaluationContext context = EvaluationContext.create(entity);
         EffectPointMap pointMap = new EffectPointMap();
-        computeEffects(entity, pointMap);
+        computeEffects(context, pointMap);
 
+        holder.clearSourcesWithPrefix(ORGAN_INSTANCE_SOURCE_PREFIX);
         Map<String, Long> oldPoints = holder.getEffectPoints();
         holder.replaceSourcePoints(ORGAN_SOURCE, pointMap.snapshot());
+        computeExtensionPoints(entity, holder, context);
+        if (entity instanceof Player player) {
+            RuntimePointExecutor.execute(player);
+        }
         Map<String, Long> newPoints = holder.getEffectPoints();
 
         if (entity instanceof Player player) {
@@ -68,9 +77,8 @@ public final class EffectRecalculationService {
         }
     }
 
-    private static void computeEffects(Entity entity, EffectPointMap target) {
+    private static void computeEffects(EvaluationContext context, EffectPointMap target) {
         target.clear();
-        EvaluationContext context = EvaluationContext.create(entity);
         for (OrganPosition pos : context.positions()) {
             ResourceLocation organId = context.organId(pos);
             if (organId == null) {
@@ -84,6 +92,15 @@ public final class EffectRecalculationService {
                     }
                 }
             }
+        }
+    }
+
+    private static void computeExtensionPoints(Entity entity, IEffectHolder holder, EvaluationContext context) {
+        PointProducer.PointProductionContext productionContext = new PointProducer.PointProductionContext(entity, context);
+        for (PointProducer producer : OepExtensionApi.getPointProducers()) {
+            EffectPointMap producerPoints = new EffectPointMap();
+            producer.producePoints(productionContext, (pointType, pointId, amount) -> producerPoints.add(pointType + ":" + pointId, amount));
+            holder.replaceSourcePoints(producer.id(), producerPoints.snapshot());
         }
     }
 

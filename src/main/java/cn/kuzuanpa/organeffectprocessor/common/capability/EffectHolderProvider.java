@@ -13,6 +13,9 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
     private static final String PERSISTENT_DATA_KEY = "organeffectprocessor.effect_holder";
     private static final String LEGACY_POINTS_KEY = "points";
     private static final String SOURCES_KEY = "sources";
+    private static final String RUNTIME_POINTS_KEY = "runtime_points";
+    private static final String RUNTIME_EXPIRATIONS_KEY = "runtime_expirations";
+    private static final String DEBUG_ENABLED_KEY = "debug_enabled";
     private static final String ORGAN_SOURCE = "organ";
 
     private final Entity owner;
@@ -35,9 +38,12 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
     public net.minecraft.nbt.CompoundTag serializeNBT() {
         net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
         tag.put(SOURCES_KEY, holder.serializeSourcesNBT());
+        tag.put(RUNTIME_POINTS_KEY, holder.serializeRuntimePointsNBT());
+        tag.put(RUNTIME_EXPIRATIONS_KEY, holder.serializeRuntimeExpirationsNBT());
         if (holder.selectedSkillId != null && !holder.selectedSkillId.isBlank()) {
             tag.putString("selected_skill", holder.selectedSkillId);
         }
+        tag.putBoolean(DEBUG_ENABLED_KEY, holder.debugEnabled);
         saveToOwner(tag);
         return tag;
     }
@@ -46,6 +52,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
     public void deserializeNBT(net.minecraft.nbt.CompoundTag nbt) {
         holder.deserializeAllNBT(nbt);
         holder.selectedSkillId = nbt.getString("selected_skill");
+        holder.debugEnabled = nbt.getBoolean(DEBUG_ENABLED_KEY);
         saveToOwner(nbt);
     }
 
@@ -55,6 +62,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
             net.minecraft.nbt.CompoundTag saved = persistentData.getCompound(PERSISTENT_DATA_KEY);
             holder.deserializeAllNBT(saved);
             holder.selectedSkillId = saved.getString("selected_skill");
+            holder.debugEnabled = saved.getBoolean(DEBUG_ENABLED_KEY);
         }
     }
 
@@ -64,11 +72,23 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
 
     private static class EffectPointMapHolder implements IEffectHolder {
         private final Map<String, Map<String, Long>> sources = new LinkedHashMap<>();
+        private final Map<String, Long> runtimePoints = new LinkedHashMap<>();
+        private final Map<String, Long> runtimeExpirations = new LinkedHashMap<>();
         private boolean dirty;
+        private boolean debugEnabled;
         private String selectedSkillId = "";
 
         @Override
         public Map<String, Long> getEffectPoints() {
+            Map<String, Long> merged = new LinkedHashMap<>(getStaticPoints());
+            for (Map.Entry<String, Long> entry : runtimePoints.entrySet()) {
+                merged.merge(entry.getKey(), entry.getValue(), Long::sum);
+            }
+            return merged;
+        }
+
+        @Override
+        public Map<String, Long> getStaticPoints() {
             Map<String, Long> merged = new LinkedHashMap<>();
             for (Map<String, Long> sourcePoints : sources.values()) {
                 for (Map.Entry<String, Long> entry : sourcePoints.entrySet()) {
@@ -79,16 +99,27 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         }
 
         @Override
+        public Map<String, Long> getRuntimePoints() {
+            return new LinkedHashMap<>(runtimePoints);
+        }
+
+        @Override
         public Map<String, Map<String, Long>> getPointSources() {
             Map<String, Map<String, Long>> copy = new LinkedHashMap<>();
             for (Map.Entry<String, Map<String, Long>> entry : sources.entrySet()) {
                 copy.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+            }
+            if (!runtimePoints.isEmpty()) {
+                copy.put("runtime", new LinkedHashMap<>(runtimePoints));
             }
             return copy;
         }
 
         @Override
         public Map<String, Long> getPointsForSource(String sourceTag) {
+            if ("runtime".equals(sourceTag)) {
+                return new LinkedHashMap<>(runtimePoints);
+            }
             return new LinkedHashMap<>(sources.getOrDefault(sourceTag, Map.of()));
         }
 
@@ -171,6 +202,108 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         }
 
         @Override
+        public int clearSourcesWithPrefix(String prefix) {
+            if (prefix == null || prefix.isBlank()) {
+                return 0;
+            }
+            int removed = 0;
+            for (String sourceTag : new LinkedHashMap<>(sources).keySet()) {
+                if (sourceTag.startsWith(prefix)) {
+                    sources.remove(sourceTag);
+                    removed++;
+                }
+            }
+            if (removed > 0) {
+                dirty = true;
+            }
+            return removed;
+        }
+
+        @Override
+        public long addRuntimePoint(String pointKey, long amount, long expireAtTick) {
+            if (amount == 0L) {
+                return runtimePoints.getOrDefault(pointKey, 0L);
+            }
+            long value = runtimePoints.getOrDefault(pointKey, 0L) + amount;
+            if (value == 0L) {
+                runtimePoints.remove(pointKey);
+                runtimeExpirations.remove(pointKey);
+            } else {
+                runtimePoints.put(pointKey, value);
+                if (expireAtTick > 0L) {
+                    runtimeExpirations.merge(pointKey, expireAtTick, Math::max);
+                }
+            }
+            dirty = true;
+            return value;
+        }
+
+        @Override
+        public long consumeRuntimePoint(String pointKey, long amount) {
+            if (amount <= 0L) {
+                return 0L;
+            }
+            long current = runtimePoints.getOrDefault(pointKey, 0L);
+            long consumed = Math.min(current, amount);
+            long remaining = current - consumed;
+            if (remaining == 0L) {
+                runtimePoints.remove(pointKey);
+                runtimeExpirations.remove(pointKey);
+            } else {
+                runtimePoints.put(pointKey, remaining);
+            }
+            if (consumed > 0L) {
+                dirty = true;
+            }
+            return consumed;
+        }
+
+        @Override
+        public long clearRuntimePoint(String pointKey) {
+            long removed = runtimePoints.getOrDefault(pointKey, 0L);
+            runtimePoints.remove(pointKey);
+            runtimeExpirations.remove(pointKey);
+            if (removed != 0L) {
+                dirty = true;
+            }
+            return removed;
+        }
+
+        @Override
+        public void clearExpiredRuntimePoints(long gameTime) {
+            boolean changed = false;
+            for (String pointKey : new LinkedHashMap<>(runtimeExpirations).keySet()) {
+                long expireAt = runtimeExpirations.getOrDefault(pointKey, 0L);
+                if (expireAt > 0L && gameTime >= expireAt) {
+                    runtimeExpirations.remove(pointKey);
+                    Long removed = runtimePoints.remove(pointKey);
+                    if (removed != null) {
+                        changed = true;
+                    }
+                }
+            }
+            if (changed) {
+                dirty = true;
+            }
+        }
+
+        @Override
+        public Map<String, Long> getRuntimeExpirations() {
+            return new LinkedHashMap<>(runtimeExpirations);
+        }
+
+        @Override
+        public boolean isDebugEnabled() {
+            return debugEnabled;
+        }
+
+        @Override
+        public void setDebugEnabled(boolean debugEnabled) {
+            this.debugEnabled = debugEnabled;
+            dirty = true;
+        }
+
+        @Override
         public String getSelectedSkillId() {
             return selectedSkillId;
         }
@@ -208,8 +341,26 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
             return tag;
         }
 
+        net.minecraft.nbt.CompoundTag serializeRuntimePointsNBT() {
+            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+            for (Map.Entry<String, Long> entry : runtimePoints.entrySet()) {
+                tag.putLong(entry.getKey(), entry.getValue());
+            }
+            return tag;
+        }
+
+        net.minecraft.nbt.CompoundTag serializeRuntimeExpirationsNBT() {
+            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+            for (Map.Entry<String, Long> entry : runtimeExpirations.entrySet()) {
+                tag.putLong(entry.getKey(), entry.getValue());
+            }
+            return tag;
+        }
+
         void deserializeAllNBT(net.minecraft.nbt.CompoundTag nbt) {
             sources.clear();
+            runtimePoints.clear();
+            runtimeExpirations.clear();
             if (nbt.contains(SOURCES_KEY)) {
                 net.minecraft.nbt.CompoundTag sourceRoot = nbt.getCompound(SOURCES_KEY);
                 for (String sourceKey : sourceRoot.getAllKeys()) {
@@ -230,6 +381,18 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
                 }
                 if (!migrated.isEmpty()) {
                     sources.put(ORGAN_SOURCE, migrated);
+                }
+            }
+            if (nbt.contains(RUNTIME_POINTS_KEY)) {
+                net.minecraft.nbt.CompoundTag runtimeRoot = nbt.getCompound(RUNTIME_POINTS_KEY);
+                for (String pointKey : runtimeRoot.getAllKeys()) {
+                    runtimePoints.put(pointKey, runtimeRoot.getLong(pointKey));
+                }
+            }
+            if (nbt.contains(RUNTIME_EXPIRATIONS_KEY)) {
+                net.minecraft.nbt.CompoundTag expirationRoot = nbt.getCompound(RUNTIME_EXPIRATIONS_KEY);
+                for (String pointKey : expirationRoot.getAllKeys()) {
+                    runtimeExpirations.put(pointKey, expirationRoot.getLong(pointKey));
                 }
             }
             dirty = false;
