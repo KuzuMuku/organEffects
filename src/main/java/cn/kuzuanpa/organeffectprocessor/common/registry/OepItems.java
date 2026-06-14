@@ -27,6 +27,24 @@ public final class OepItems {
             () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_tendon"));
     public static final RegistryObject<Item> WONDER_EYE_OF_STORM = ITEMS.register("wonder_eye_of_storm",
             () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_eye_of_storm"));
+    public static final RegistryObject<Item> WONDER_BIOME_CORE = ITEMS.register("wonder_biome_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_biome_core"));
+    public static final RegistryObject<Item> WONDER_DIMENSION_CORE = ITEMS.register("wonder_dimension_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_dimension_core"));
+    public static final RegistryObject<Item> WONDER_LIGHT_CORE = ITEMS.register("wonder_light_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_light_core"));
+    public static final RegistryObject<Item> WONDER_FOOTING_CORE = ITEMS.register("wonder_footing_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_footing_core"));
+    public static final RegistryObject<Item> WONDER_GUARD_CORE = ITEMS.register("wonder_guard_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_guard_core"));
+    public static final RegistryObject<Item> WONDER_HUNTER_CORE = ITEMS.register("wonder_hunter_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_hunter_core"));
+    public static final RegistryObject<Item> WONDER_DRIFTER_CORE = ITEMS.register("wonder_drifter_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_drifter_core"));
+    public static final RegistryObject<Item> WONDER_WARP_CORE = ITEMS.register("wonder_warp_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_warp_core"));
+    public static final RegistryObject<Item> WONDER_TAUNT_CORE = ITEMS.register("wonder_taunt_core",
+            () -> new OepOrganItem(new Item.Properties().stacksTo(1), "wonder_taunt_core"));
 
     private OepItems() {}
 }

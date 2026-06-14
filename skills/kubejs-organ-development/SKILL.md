@@ -158,6 +158,7 @@ Prefer point-bridge design:
 
 - event produces `counter:*` or `runtime:*`
 - execution reads or consumes those points
+- use `source: "self"` when the source should stay local to each installed organ instance instead of being shared globally across all matching items
 
 ## What works automatically for KubeJS organs
 
@@ -255,4 +256,7 @@ Check:
 - `docs/organ-effect-json-guide.md`
 - `src/main/resources/data/organeffectprocessor/organapi/organs/wonder_heart.json`
 - `src/main/resources/data/organeffectprocessor/organapi/organs/wonder_eye_of_storm.json`
+- `src/main/resources/data/organeffectprocessor/organapi/organs/wonder_tendon.json`
+- `src/main/resources/data/organeffectprocessor/organapi/organs/wonder_biome_core.json`
+- `src/main/resources/data/organeffectprocessor/organapi/organs/wonder_taunt_core.json`
 - `../organAPI/docs/organ-data-format.md`

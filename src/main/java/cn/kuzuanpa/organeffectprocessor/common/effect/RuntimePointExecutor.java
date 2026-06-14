@@ -50,15 +50,31 @@ public final class RuntimePointExecutor {
                 ? execution.pointType() + ":" + execution.pointId()
                 : null;
         long runtimeAvailable = pointKey != null ? holder.getRuntimePoints().getOrDefault(pointKey, 0L) : 0L;
-        String source = resolveSource(instance, execution.source());
-        long sourceAvailable = pointKey != null ? holder.getPointsForSource(source).getOrDefault(pointKey, 0L) : 0L;
+        long sourceAvailable = pointKey != null ? holder.getPooledSourcePoints(pointKey, execution.source()) : 0L;
         if (runtimeAvailable <= 0L && sourceAvailable <= 0L) {
             return;
         }
-        executor.execute(new PointExecutor.PointExecutionContext(player, holder, action -> resolvePointUsage(player, holder, instance, action)), execution);
+        executor.execute(new PointExecutor.PointExecutionContext(player, holder, action -> previewPointUsage(holder, action)), execution);
     }
 
-    private static PointExecutor.PointUsage resolvePointUsage(Player player, IEffectHolder holder, EffectInstance instance, EffectDefinition.BonusAction execution) {
+    private static PointExecutor.PointUsage previewPointUsage(IEffectHolder holder, EffectDefinition.BonusAction execution) {
+        if (execution.pointType() == null || execution.pointId() == null) {
+            return new PointExecutor.PointUsage(0L);
+        }
+        long maxConsume = Math.max(0L, execution.maxConsume());
+        if (maxConsume <= 0L) {
+            return new PointExecutor.PointUsage(0L);
+        }
+        String pointKey = execution.pointType() + ":" + execution.pointId();
+        long runtimeAvailable = holder.getRuntimePoints().getOrDefault(pointKey, 0L);
+        if (runtimeAvailable > 0L) {
+            return new PointExecutor.PointUsage(Math.min(runtimeAvailable, maxConsume));
+        }
+        long available = holder.getPooledSourcePoints(pointKey, execution.source());
+        return new PointExecutor.PointUsage(Math.min(available, maxConsume));
+    }
+
+    public static PointExecutor.PointUsage consumePointUsage(Player player, IEffectHolder holder, EffectDefinition.BonusAction execution) {
         if (execution.pointType() == null || execution.pointId() == null) {
             OepDebug.trace(player, "resolve usage skipped missing point binding");
             return new PointExecutor.PointUsage(0L);
@@ -79,13 +95,13 @@ public final class RuntimePointExecutor {
             }
             return new PointExecutor.PointUsage(Math.max(0L, used));
         }
-        String source = resolveSource(instance, execution.source());
-        long available = holder.getPointsForSource(source).getOrDefault(pointKey, 0L);
+        long available = holder.getPooledSourcePoints(pointKey, execution.source());
         long capped = Math.min(available, maxConsume);
-        long used = execution.consumePoints() ? holder.consumeSourcePoint(source, pointKey, capped) : capped;
-        long remaining = holder.getPointsForSource(source).getOrDefault(pointKey, 0L);
+        long used = execution.consumePoints() ? holder.consumePooledSourcePoints(pointKey, execution.source(), capped) : capped;
+        long remaining = holder.getPooledSourcePoints(pointKey, execution.source());
         if (execution.consumePoints()) {
-            OepDebug.trace(player, "resolve source %s %s available=%d used=%d remaining=%d consume=%s", source, pointKey, available, used, remaining, execution.consumePoints());
+            OepDebug.trace(player, "resolve pooled %s source=%s available=%d used=%d remaining=%d consume=%s",
+                    pointKey, execution.source(), available, used, remaining, execution.consumePoints());
         }
         return new PointExecutor.PointUsage(Math.max(0L, used));
     }

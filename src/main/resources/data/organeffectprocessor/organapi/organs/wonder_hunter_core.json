@@ -1,0 +1,33 @@
+{
+  "item": "organeffectprocessor:wonder_hunter_core",
+  "valid_parts": ["organapi:left_arm", "organapi:right_arm"],
+  "size": 1,
+  "tooltips": ["A sample organ that reacts when you kill a mob."],
+  "tags": ["wonder", "sample", "kill"],
+  "effects": [
+    {
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [],
+      "events": [
+        {
+          "type": "kill",
+          "add_points": [
+            {
+              "type": "counter",
+              "id": "charge",
+              "amount": 1,
+              "source": "self"
+            }
+          ],
+          "consume_points": [],
+          "actions": []
+        }
+      ],
+      "executions": []
+    }
+  ]
+}

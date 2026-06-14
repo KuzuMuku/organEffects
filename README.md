@@ -55,6 +55,13 @@ Then rebuild OEP.
 5. Attribute modifiers, skill availability, and runtime executors are updated.
 6. `EffectPointViewerItem` can force recompute and print point groups for debugging.
 
+Source model and execution order:
+
+- `source: "self"` resolves to an organ-instance-local source tag, so event-earned non-runtime points stay associated with the specific installed organ instance.
+- Executions and point-based event actions check `runtime:*` points first, then fall back to pooled source-backed points with the same key.
+- Static recompute-owned instance sources are rebuilt during recompute; event-earned `organ-instance:.../event/...` sources are expected to persist until consumed or explicitly cleared.
+- `effect_point_viewer` is both a display tool and a recompute trigger, so it remains useful for debugging but can still hide stale recompute bugs if you only test through the item.
+
 ## Java extension API
 
 Use the extension API when JSON alone is not enough, especially for compat submods that depend on other mods.
@@ -84,12 +91,24 @@ The main OEP mod should not import Create or other optional mod APIs. A compat s
 
 Current sample organs live under `src/main/resources/data/organeffectprocessor/organapi/organs/`.
 
-`wonder_eye_of_storm` demonstrates a progressive organ:
+Representative focused samples now include:
 
-- static base reward: luck
-- rain + night bonus: movement speed
-- rain + night runtime trigger: viewer use creates a storm token
-- execution: token grants night vision
+- `wonder_brain` - simplest static attribute grant
+- `wonder_brain_v2` - `use_item -> grant_items`
+- `wonder_heart` - `eat -> apply_mob_effect`
+- `wonder_leg_muscle` - `move -> heal`
+- `wonder_tendon` - `attack -> modify_damage`
+- `wonder_lung` - `slot_index -> skill`
+- `wonder_eye_of_storm` - `weather + time -> use_item -> night_vision`
+- `wonder_biome_core` - `biome` / `biome_tag`
+- `wonder_dimension_core` - `dimid`
+- `wonder_light_core` - `lightlevel`
+- `wonder_footing_core` - `stepon` / `block_tag`
+- `wonder_guard_core` - `attacked` / `health_loss`
+- `wonder_hunter_core` - `kill`
+- `wonder_drifter_core` - `biome_change`
+- `wonder_warp_core` - `dimension_change`
+- `wonder_taunt_core` - `taunt`
 
 ## Developer docs
 

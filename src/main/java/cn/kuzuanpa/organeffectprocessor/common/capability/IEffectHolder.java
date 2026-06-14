@@ -13,6 +13,14 @@ public interface IEffectHolder {
 
     Map<String, Long> getPointsForSource(String sourceTag);
 
+    long getPooledSourcePoints(String pointKey);
+
+    long getPooledSourcePoints(String pointKey, String sourceTag);
+
+    long consumePooledSourcePoints(String pointKey, long amount);
+
+    long consumePooledSourcePoints(String pointKey, String sourceTag, long amount);
+
     void replaceSourcePoints(String sourceTag, Map<String, Long> points);
 
     long addSourcePoint(String sourceTag, String pointKey, long amount);

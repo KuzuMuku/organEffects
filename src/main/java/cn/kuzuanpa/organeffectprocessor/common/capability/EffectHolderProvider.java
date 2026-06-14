@@ -124,6 +124,55 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         }
 
         @Override
+        public long getPooledSourcePoints(String pointKey) {
+            return getPooledSourcePoints(pointKey, null);
+        }
+
+        @Override
+        public long getPooledSourcePoints(String pointKey, String sourceTag) {
+            if (pointKey == null || pointKey.isBlank()) {
+                return 0L;
+            }
+            if (sourceTag != null && !sourceTag.isBlank() && !"self".equals(sourceTag)) {
+                return sources.getOrDefault(sourceTag, Map.of()).getOrDefault(pointKey, 0L);
+            }
+            long total = 0L;
+            for (Map<String, Long> sourcePoints : sources.values()) {
+                total += sourcePoints.getOrDefault(pointKey, 0L);
+            }
+            return total;
+        }
+
+        @Override
+        public long consumePooledSourcePoints(String pointKey, long amount) {
+            return consumePooledSourcePoints(pointKey, null, amount);
+        }
+
+        @Override
+        public long consumePooledSourcePoints(String pointKey, String sourceTag, long amount) {
+            if (pointKey == null || pointKey.isBlank() || amount <= 0L) {
+                return 0L;
+            }
+            if (sourceTag != null && !sourceTag.isBlank() && !"self".equals(sourceTag)) {
+                return consumeSourcePoint(sourceTag, pointKey, amount);
+            }
+            long remaining = amount;
+            long consumed = 0L;
+            for (String currentSource : new LinkedHashMap<>(sources).keySet()) {
+                if (remaining <= 0L) {
+                    break;
+                }
+                long used = consumeSourcePoint(currentSource, pointKey, remaining);
+                if (used <= 0L) {
+                    continue;
+                }
+                consumed += used;
+                remaining -= used;
+            }
+            return consumed;
+        }
+
+        @Override
         public void replaceSourcePoints(String sourceTag, Map<String, Long> points) {
             Map<String, Long> cleaned = new LinkedHashMap<>();
             for (Map.Entry<String, Long> entry : points.entrySet()) {

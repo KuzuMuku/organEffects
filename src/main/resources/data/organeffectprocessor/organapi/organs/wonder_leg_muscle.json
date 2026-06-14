@@ -2,8 +2,8 @@
   "item": "organeffectprocessor:wonder_leg_muscle",
   "valid_parts": ["organapi:left_leg", "organapi:right_leg"],
   "size": 1,
-  "tooltips": ["Supercharged leg muscles."],
-  "tags": ["wonder", "muscle"],
+  "tooltips": ["A focused sample organ that converts movement into healing."],
+  "tags": ["wonder", "sample", "move"],
   "effects": [
     {
       "conditions": [
@@ -25,12 +25,6 @@
           "source": "self",
           "add_points": [
             {
-              "type": "counter",
-              "id": "charge",
-              "amount": 1,
-              "source": "self"
-            },
-            {
               "type": "runtime",
               "id": "leg_recovery_pulse",
               "amount": 1,
@@ -45,22 +39,6 @@
           ],
           "consume_points": [],
           "actions": []
-        },
-        {
-          "type": "attack",
-          "source": "self",
-          "add_points": [],
-          "consume_points": [],
-          "actions": [
-            {
-              "type": "bonus_damage_per_point",
-              "point_type": "counter",
-              "point_id": "charge",
-              "amount_per_point": 0.5,
-              "source": "self",
-              "max_consume": 999999
-            }
-          ]
         }
       ],
       "executions": [
@@ -73,44 +51,6 @@
           "max_consume": 1
         }
       ]
-    },
-    {
-      "conditions": [
-        {
-          "type": "distance_to_edge",
-          "edge": "top",
-          "op": "lte",
-          "value": 0
-        },
-        {
-          "type": "has_organ",
-          "scope": "symmetric_position",
-          "organ": "organeffectprocessor:wonder_leg_muscle"
-        }
-      ],
-      "grants": [
-        {
-          "type": "skill",
-          "skill_name": "double_jump",
-          "amount": 1
-        }
-      ],
-      "events": [
-        {
-          "type": "mine",
-          "add_points": [
-            {
-              "type": "counter",
-              "id": "miner_instinct",
-              "amount": 1,
-              "source": "self"
-            }
-          ],
-          "consume_points": [],
-          "actions": []
-        }
-      ],
-      "executions": []
     }
   ]
 }

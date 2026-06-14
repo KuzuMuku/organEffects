@@ -1,5 +1,6 @@
 package cn.kuzuanpa.organeffectprocessor.common.sync;
 
+import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Map;
@@ -15,6 +16,7 @@ import net.minecraft.world.entity.player.Player;
 public class AttributeSyncer {
     private static final String ATTRIBUTE_KEY_PREFIX = "attribute:";
     private static final String MODIFIER_NAME_PREFIX = "organeffectprocessor:";
+    private static final String MOVEMENT_SPEED_ATTRIBUTE = "minecraft:movement_speed";
 
     public static void applyFromMap(Player player, Map<String, Long> oldPoints, Map<String, Long> newPoints) {
         Set<String> keys = new HashSet<>();
@@ -43,6 +45,7 @@ public class AttributeSyncer {
 
         AttributeInstance instance = player.getAttribute(attribute);
         if (instance == null) {
+            OepDebug.trace(player, "attribute skipped missing instance id=%s", attributeId);
             return;
         }
 
@@ -52,7 +55,21 @@ public class AttributeSyncer {
             return;
         }
 
-        instance.addPermanentModifier(new AttributeModifier(modifierId, MODIFIER_NAME_PREFIX + attributeId, (double) newValue,
-                AttributeModifier.Operation.ADDITION));
+        instance.addPermanentModifier(new AttributeModifier(modifierId, MODIFIER_NAME_PREFIX + attributeId,
+                resolveModifierAmount(attributeId, newValue), resolveOperation(attributeId)));
+    }
+
+    private static double resolveModifierAmount(ResourceLocation attributeId, long newValue) {
+        if (MOVEMENT_SPEED_ATTRIBUTE.equals(attributeId.toString())) {
+            return newValue * 0.1D;
+        }
+        return (double) newValue;
+    }
+
+    private static AttributeModifier.Operation resolveOperation(ResourceLocation attributeId) {
+        if (MOVEMENT_SPEED_ATTRIBUTE.equals(attributeId.toString())) {
+            return AttributeModifier.Operation.MULTIPLY_TOTAL;
+        }
+        return AttributeModifier.Operation.ADDITION;
     }
 }

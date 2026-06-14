@@ -1,14 +1,16 @@
 {
-  "item": "organeffectprocessor:wonder_brain",
+  "item": "organeffectprocessor:wonder_light_core",
   "valid_parts": ["organapi:head"],
   "size": 1,
-  "tooltips": ["A simple sample organ that grants movement speed."],
-  "tags": ["wonder", "sample", "attribute"],
+  "tooltips": ["A sample organ that reacts to local light level."],
+  "tags": ["wonder", "sample", "light"],
   "effects": [
     {
       "conditions": [
         {
-          "type": "static"
+          "type": "lightlevel",
+          "op": "gte",
+          "value": 12
         }
       ],
       "grants": [

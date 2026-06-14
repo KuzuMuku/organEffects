@@ -1,0 +1,26 @@
+{
+  "item": "organeffectprocessor:wonder_dimension_core",
+  "valid_parts": ["organapi:head"],
+  "size": 1,
+  "tooltips": ["A sample organ that reacts to the current dimension id."],
+  "tags": ["wonder", "sample", "dimension"],
+  "effects": [
+    {
+      "conditions": [
+        {
+          "type": "dimid",
+          "value": "minecraft:the_nether"
+        }
+      ],
+      "grants": [
+        {
+          "type": "attribute",
+          "attribute": "attack_damage",
+          "amount": 1
+        }
+      ],
+      "events": [],
+      "executions": []
+    }
+  ]
+}

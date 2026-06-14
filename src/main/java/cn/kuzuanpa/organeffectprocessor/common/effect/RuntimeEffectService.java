@@ -54,6 +54,27 @@ public final class RuntimeEffectService {
         handleEvent(player, new RuntimeEventContext("use_item", player, null, null, stack, null, 0.0D, 0.0D));
     }
 
+    public static void handleAttacked(LivingEntity victim, LivingEntity attacker, Entity directEntity, float damageAmount) {
+        handleEvent(victim, new RuntimeEventContext("attacked", victim, attacker, directEntity, ItemStack.EMPTY, null, 0.0D, damageAmount));
+    }
+
+    public static void handleHealthLoss(LivingEntity entity, Entity sourceEntity, Entity directEntity, float damageAmount) {
+        LivingEntity attacker = sourceEntity instanceof LivingEntity living ? living : null;
+        handleEvent(entity, new RuntimeEventContext("health_loss", entity, attacker, directEntity, ItemStack.EMPTY, null, 0.0D, damageAmount));
+    }
+
+    public static void handleKill(LivingEntity attacker, LivingEntity target, Entity directEntity) {
+        handleEvent(attacker, new RuntimeEventContext("kill", attacker, target, directEntity, ItemStack.EMPTY, null, 0.0D, 0.0D));
+    }
+
+    public static void handleBiomeChange(Player player) {
+        handleEvent(player, new RuntimeEventContext("biome_change", player, null, null, ItemStack.EMPTY, null, 0.0D, 0.0D));
+    }
+
+    public static void handleDimensionChange(Player player) {
+        handleEvent(player, new RuntimeEventContext("dimension_change", player, null, null, ItemStack.EMPTY, null, 0.0D, 0.0D));
+    }
+
     public static float handleAttack(LivingEntity attacker, LivingEntity target, Entity directEntity, float baseDamage) {
         RuntimeEventContext eventContext = new RuntimeEventContext("attack", attacker, target, directEntity, ItemStack.EMPTY, null, 0.0D, baseDamage);
         return (float) (baseDamage + handleEvent(attacker, eventContext));
@@ -225,12 +246,11 @@ public final class RuntimeEffectService {
                     OepDebug.trace(player, "consume runtime %s used=%d %d -> %d", pointKey, used, before, after);
                 }
             } else {
-                String source = resolveSource(instance, mutation.source());
-                long before = holder.getPointsForSource(source).getOrDefault(pointKey, 0L);
-                long used = holder.consumeSourcePoint(source, pointKey, amount);
-                long after = holder.getPointsForSource(source).getOrDefault(pointKey, 0L);
+                long before = holder.getPooledSourcePoints(pointKey, mutation.source());
+                long used = holder.consumePooledSourcePoints(pointKey, mutation.source(), amount);
+                long after = holder.getPooledSourcePoints(pointKey, mutation.source());
                 if (entity instanceof Player player) {
-                    OepDebug.trace(player, "consume source %s %s used=%d %d -> %d", source, pointKey, used, before, after);
+                    OepDebug.trace(player, "consume pooled source=%s %s used=%d %d -> %d", mutation.source(), pointKey, used, before, after);
                 }
             }
         }
@@ -247,10 +267,9 @@ public final class RuntimeEffectService {
             long used = action.consumePoints() ? holder.consumeRuntimePoint(pointKey, capped) : capped;
             return new PointUsage(Math.max(0L, used));
         }
-        String source = resolveSource(instance, action.source());
-        long available = holder.getPointsForSource(source).getOrDefault(pointKey, 0L);
+        long available = holder.getPooledSourcePoints(pointKey, action.source());
         long capped = Math.min(available, action.maxConsume());
-        long used = action.consumePoints() ? holder.consumeSourcePoint(source, pointKey, capped) : capped;
+        long used = action.consumePoints() ? holder.consumePooledSourcePoints(pointKey, action.source(), capped) : capped;
         return new PointUsage(Math.max(0L, used));
     }
 

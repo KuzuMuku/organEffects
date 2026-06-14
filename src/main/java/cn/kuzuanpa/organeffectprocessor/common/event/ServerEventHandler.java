@@ -9,15 +9,20 @@ import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimePointExecutor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -30,6 +35,7 @@ public class ServerEventHandler {
     private static final int DYNAMIC_RECOMPUTE_INTERVAL = 20;
 
     private final Map<UUID, Vec3> lastPositions = new HashMap<>();
+    private final Map<UUID, ResourceKey<Biome>> lastBiomes = new HashMap<>();
 
     @SubscribeEvent
     public void onOrganStateCommitted(OrganStateCommittedEvent event) {
@@ -42,7 +48,7 @@ public class ServerEventHandler {
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerLoggedInEvent event) {
         EffectRecalculationService.recompute(event.getEntity());
-        lastPositions.put(event.getEntity().getUUID(), event.getEntity().position());
+        cachePlayerState(event.getEntity());
     }
 
     @SubscribeEvent
@@ -51,7 +57,7 @@ public class ServerEventHandler {
             return;
         }
         EffectRecalculationService.recompute(event.getEntity());
-        lastPositions.put(event.getEntity().getUUID(), event.getEntity().position());
+        cachePlayerState(event.getEntity());
     }
 
     @SubscribeEvent
@@ -60,7 +66,7 @@ public class ServerEventHandler {
             return;
         }
         EffectRecalculationService.reapply(player);
-        lastPositions.put(player.getUUID(), player.position());
+        cachePlayerState(player);
     }
 
     @SubscribeEvent
@@ -76,12 +82,16 @@ public class ServerEventHandler {
         }
         Vec3 current = player.position();
         Vec3 previous = lastPositions.put(player.getUUID(), current);
-        if (previous == null) {
-            return;
+        if (previous != null) {
+            double horizontalDistance = current.subtract(previous).horizontalDistance();
+            if (horizontalDistance > 0.0D) {
+                RuntimeEffectService.handleMove(player, horizontalDistance);
+            }
         }
-        double horizontalDistance = current.subtract(previous).horizontalDistance();
-        if (horizontalDistance > 0.0D) {
-            RuntimeEffectService.handleMove(player, horizontalDistance);
+        ResourceKey<Biome> currentBiome = getBiomeKey(player);
+        ResourceKey<Biome> previousBiome = lastBiomes.put(player.getUUID(), currentBiome);
+        if (previousBiome != null && currentBiome != null && !previousBiome.equals(currentBiome)) {
+            RuntimeEffectService.handleBiomeChange(player);
         }
     }
 
@@ -90,7 +100,23 @@ public class ServerEventHandler {
         Entity attackerEntity = event.getSource().getEntity();
         if (attackerEntity instanceof LivingEntity attacker) {
             event.setAmount(RuntimeEffectService.handleAttack(attacker, event.getEntity(), event.getSource().getDirectEntity(), event.getAmount()));
+            RuntimeEffectService.handleAttacked(event.getEntity(), attacker, event.getSource().getDirectEntity(), event.getAmount());
         }
+        RuntimeEffectService.handleHealthLoss(event.getEntity(), attackerEntity, event.getSource().getDirectEntity(), event.getAmount());
+    }
+
+    @SubscribeEvent
+    public void onLivingDeath(LivingDeathEvent event) {
+        Entity attackerEntity = event.getSource().getEntity();
+        if (attackerEntity instanceof LivingEntity attacker) {
+            RuntimeEffectService.handleKill(attacker, event.getEntity(), event.getSource().getDirectEntity());
+        }
+    }
+
+    @SubscribeEvent
+    public void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        RuntimeEffectService.handleDimensionChange(event.getEntity());
+        cachePlayerState(event.getEntity());
     }
 
     @SubscribeEvent
@@ -125,5 +151,18 @@ public class ServerEventHandler {
                     new EffectHolderProvider(event.getObject())
             );
         }
+    }
+
+    private void cachePlayerState(Player player) {
+        lastPositions.put(player.getUUID(), player.position());
+        ResourceKey<Biome> biomeKey = getBiomeKey(player);
+        if (biomeKey != null) {
+            lastBiomes.put(player.getUUID(), biomeKey);
+        }
+    }
+
+    private ResourceKey<Biome> getBiomeKey(Player player) {
+        Holder<Biome> biomeHolder = player.level().getBiome(player.blockPosition());
+        return biomeHolder.unwrapKey().orElse(null);
     }
 }

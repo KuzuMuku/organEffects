@@ -2,55 +2,9 @@
   "item": "organeffectprocessor:wonder_lung",
   "valid_parts": ["organapi:chest"],
   "size": 1,
-  "tooltips": ["Lungs that grant underwater breathing."],
-  "tags": ["wonder", "respiratory"],
+  "tooltips": ["A focused sample organ that grants water breathing from slot placement."],
+  "tags": ["wonder", "sample", "slot"],
   "effects": [
-    {
-      "conditions": [
-        {
-          "type": "static"
-        }
-      ],
-      "grants": [
-        {
-          "type": "attribute",
-          "attribute": "luck",
-          "amount": 1
-        }
-      ],
-      "events": [
-        {
-          "type": "mine",
-          "add_points": [
-            {
-              "type": "runtime",
-              "id": "mining_momentum",
-              "amount": 1,
-              "chance": {
-                "base": 0.25,
-                "lucky_step": 0.08,
-                "max": 0.7
-              },
-              "duration_ticks": 60
-            }
-          ],
-          "consume_points": [],
-          "actions": []
-        }
-      ],
-      "executions": [
-        {
-          "type": "apply_mob_effect",
-          "point_type": "runtime",
-          "point_id": "mining_momentum",
-          "effect": "minecraft:haste",
-          "duration_ticks": 40,
-          "amplifier": 0,
-          "consume_points": false,
-          "max_consume": 1
-        }
-      ]
-    },
     {
       "conditions": [
         {

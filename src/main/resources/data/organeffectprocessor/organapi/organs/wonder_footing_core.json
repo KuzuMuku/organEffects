@@ -1,0 +1,43 @@
+{
+  "item": "organeffectprocessor:wonder_footing_core",
+  "valid_parts": ["organapi:left_leg", "organapi:right_leg"],
+  "size": 1,
+  "tooltips": ["A sample organ that reacts to the block under the player."],
+  "tags": ["wonder", "sample", "stepon"],
+  "effects": [
+    {
+      "conditions": [
+        {
+          "type": "stepon",
+          "block": "minecraft:moss_block"
+        }
+      ],
+      "grants": [
+        {
+          "type": "attribute",
+          "attribute": "luck",
+          "amount": 1
+        }
+      ],
+      "events": [],
+      "executions": []
+    },
+    {
+      "conditions": [
+        {
+          "type": "stepon",
+          "block_tag": "minecraft:wool"
+        }
+      ],
+      "grants": [
+        {
+          "type": "attribute",
+          "attribute": "movement_speed",
+          "amount": 1
+        }
+      ],
+      "events": [],
+      "executions": []
+    }
+  ]
+}

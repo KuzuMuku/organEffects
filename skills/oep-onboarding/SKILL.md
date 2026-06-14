@@ -94,10 +94,10 @@ OEP reads `effects[]` blocks embedded inside organ JSON files under `organapi/or
 
 Current internal model:
 
-- `conditions`: AND-list of condition objects such as `static`, `slot_index`, `weather`, `time`, `has_organ`
+- `conditions`: AND-list of condition objects such as `static`, `slot_index`, `distance_to_edge`, `weather`, `time`, `has_organ`, `biome`, `dimid`, `lightlevel`, `stepon`
 - `grants`: static point grants produced during recomputation
-- `events`: runtime triggers that mutate source/runtime points
-- `executions`: point-driven effects that read or consume points
+- `events`: runtime triggers that mutate source/runtime points, including `move`, `attack`, `attacked`, `health_loss`, `kill`, `biome_change`, `dimension_change`, `eat`, `mine`, `use_item`
+- `executions`: point-driven effects that read or consume points, including built-ins like `apply_mob_effect`, `heal`, `grant_items`, and `taunt`
 
 Events and executions should stay decoupled through the point pool whenever possible. Damage-modifying event actions are the main current exception because they need attack-context timing.
 
@@ -152,6 +152,12 @@ Position checks use the 0-based organ slot index returned by OrganAPI.
    - `OepNetwork.syncSkills(...)` mirrors current skill state to client
 
 The point viewer also forces a recompute on use so chat output reflects current installed organs immediately.
+
+Important source-model note:
+
+- `source: "self"` resolves to an organ-instance-local source tag
+- executions and event actions check `runtime:*` points first, then pooled source-backed points
+- static recompute-owned instance sources are rebuilt during recompute, but event-earned `organ-instance:.../event/...` sources should persist until consumed/cleared
 
 ## Capability/state
 
@@ -257,7 +263,7 @@ Then re-run OEP compile.
 
 1. Edit organ JSON under `src/main/resources/data/<namespace>/organapi/organs/`.
 2. Keep item id, valid parts, and organ tag membership aligned.
-3. Use `effects[]` with `trigger/value/grants`.
+3. Use `effects[]` with `conditions / grants / events / executions`.
 4. Rebuild and use the effect point viewer to confirm the new map output.
 
 ### Adding a new point type

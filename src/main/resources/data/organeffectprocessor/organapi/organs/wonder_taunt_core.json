@@ -1,9 +1,9 @@
 {
-  "item": "organeffectprocessor:wonder_heart",
+  "item": "organeffectprocessor:wonder_taunt_core",
   "valid_parts": ["organapi:chest"],
   "size": 1,
-  "tooltips": ["A focused sample organ that heals after eating."],
-  "tags": ["wonder", "sample", "eat"],
+  "tooltips": ["A sample organ that taunts nearby hostile mobs after taking damage."],
+  "tags": ["wonder", "sample", "taunt"],
   "effects": [
     {
       "conditions": [
@@ -14,18 +14,12 @@
       "grants": [],
       "events": [
         {
-          "type": "eat",
-          "food_only": true,
+          "type": "attacked",
           "add_points": [
             {
               "type": "runtime",
-              "id": "heart_regen_pulse",
+              "id": "brain_reward_token",
               "amount": 1,
-              "chance": {
-                "base": 0.35,
-                "lucky_step": 0.1,
-                "max": 0.85
-              },
               "duration_ticks": 2
             }
           ],
@@ -35,12 +29,11 @@
       ],
       "executions": [
         {
-          "type": "apply_mob_effect",
+          "type": "taunt",
           "point_type": "runtime",
-          "point_id": "heart_regen_pulse",
-          "effect": "minecraft:regeneration",
-          "duration_ticks": 100,
-          "amplifier": 0,
+          "point_id": "brain_reward_token",
+          "amount": 8.0,
+          "target": "hostile",
           "consume_points": true,
           "max_consume": 1
         }

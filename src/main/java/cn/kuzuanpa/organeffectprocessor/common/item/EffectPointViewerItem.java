@@ -1,12 +1,9 @@
 package cn.kuzuanpa.organeffectprocessor.common.item;
 
-import cn.kuzuanpa.organapi.api.organ.OrganDefinition;
 import cn.kuzuanpa.organapi.api.query.OrganPosition;
 import cn.kuzuanpa.organapi.api.query.OrganQueryService;
-import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
-import cn.kuzuanpa.organeffectprocessor.common.data.OrganEffectData;
 import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.effect.EffectRecalculationService;
 import cn.kuzuanpa.organeffectprocessor.common.point.EffectPointTextHelper;
@@ -17,7 +14,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
@@ -57,38 +53,14 @@ public class EffectPointViewerItem extends Item {
     }
 
     private static void displayPotentialEffects(Player player) {
-        Map<ResourceLocation, OrganDisplay> displays = new LinkedHashMap<>();
-        for (OrganPosition position : OrganQueryService.getInstalledOrganPositions(player)) {
-            OrganDefinition definition = OrganRegistryAccess.getOrgan(position.organ()).orElse(null);
-            if (definition == null) {
-                continue;
-            }
-            displays.computeIfAbsent(definition.id(), id -> new OrganDisplay(definition, position));
-        }
-        if (displays.isEmpty()) {
+        List<Component> lines = OrganEffectDisplayBuilder.buildViewerEffectLines(player, OrganQueryService.getInstalledOrganPositions(player));
+        if (lines.isEmpty()) {
+            player.displayClientMessage(Component.translatable("message.organeffectprocessor.effects.viewer_empty").withStyle(ChatFormatting.GRAY), false);
             return;
         }
-
-        boolean showedAny = false;
-        for (OrganDisplay display : displays.values()) {
-            List<Component> lines = OrganEffectDisplayBuilder.buildViewerEffectLines(
-                    display.definition(),
-                    OrganEffectData.INSTANCE.getEffectsForOrgan(display.definition().id())
-            );
-            if (lines.isEmpty()) {
-                continue;
-            }
-            if (!showedAny) {
-                player.displayClientMessage(Component.translatable("message.organeffectprocessor.effects.viewer_header").withStyle(ChatFormatting.LIGHT_PURPLE), false);
-                showedAny = true;
-            }
-            player.displayClientMessage(lines.get(0).copy().append(Component.literal(" [" + display.position().bodyPartId() + " #" + display.position().slotIndex() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
-            for (int index = 1; index < lines.size(); index++) {
-                player.displayClientMessage(lines.get(index), false);
-            }
-        }
-        if (!showedAny) {
-            player.displayClientMessage(Component.translatable("message.organeffectprocessor.effects.viewer_empty").withStyle(ChatFormatting.GRAY), false);
+        player.displayClientMessage(Component.translatable("message.organeffectprocessor.effects.viewer_header").withStyle(ChatFormatting.LIGHT_PURPLE), false);
+        for (Component line : lines) {
+            player.displayClientMessage(line, false);
         }
     }
 
@@ -130,6 +102,4 @@ public class EffectPointViewerItem extends Item {
         return breakdown;
     }
 
-    private record OrganDisplay(OrganDefinition definition, OrganPosition position) {
-    }
 }

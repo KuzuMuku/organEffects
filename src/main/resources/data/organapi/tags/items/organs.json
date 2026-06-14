@@ -7,6 +7,15 @@
     "organeffectprocessor:wonder_lung",
     "organeffectprocessor:wonder_leg_muscle",
     "organeffectprocessor:wonder_tendon",
-    "organeffectprocessor:wonder_eye_of_storm"
+    "organeffectprocessor:wonder_eye_of_storm",
+    "organeffectprocessor:wonder_biome_core",
+    "organeffectprocessor:wonder_dimension_core",
+    "organeffectprocessor:wonder_light_core",
+    "organeffectprocessor:wonder_footing_core",
+    "organeffectprocessor:wonder_guard_core",
+    "organeffectprocessor:wonder_hunter_core",
+    "organeffectprocessor:wonder_drifter_core",
+    "organeffectprocessor:wonder_warp_core",
+    "organeffectprocessor:wonder_taunt_core"
   ]
 }

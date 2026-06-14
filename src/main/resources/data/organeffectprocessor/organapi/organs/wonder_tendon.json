@@ -2,8 +2,8 @@
   "item": "organeffectprocessor:wonder_tendon",
   "valid_parts": ["organapi:left_arm", "organapi:right_arm"],
   "size": 1,
-  "tooltips": ["Reinforced arm tendons."],
-  "tags": ["wonder", "tendon"],
+  "tooltips": ["A focused sample organ that modifies attack damage."],
+  "tags": ["wonder", "sample", "attack"],
   "effects": [
     {
       "conditions": [

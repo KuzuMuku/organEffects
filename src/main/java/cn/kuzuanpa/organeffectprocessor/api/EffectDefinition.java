@@ -27,7 +27,12 @@ public record EffectDefinition(
             String scope,
             String bodyPart,
             Integer slot,
-            String organ
+            String organ,
+            String biome,
+            String biomeTag,
+            String dimension,
+            String block,
+            String blockTag
     ) {
     }
 

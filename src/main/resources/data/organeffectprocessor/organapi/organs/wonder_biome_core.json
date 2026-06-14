@@ -1,0 +1,43 @@
+{
+  "item": "organeffectprocessor:wonder_biome_core",
+  "valid_parts": ["organapi:head"],
+  "size": 1,
+  "tooltips": ["A sample organ that reacts to biome ids and biome tags."],
+  "tags": ["wonder", "sample", "biome"],
+  "effects": [
+    {
+      "conditions": [
+        {
+          "type": "biome",
+          "value": "minecraft:plains"
+        }
+      ],
+      "grants": [
+        {
+          "type": "attribute",
+          "attribute": "luck",
+          "amount": 1
+        }
+      ],
+      "events": [],
+      "executions": []
+    },
+    {
+      "conditions": [
+        {
+          "type": "biome",
+          "biome_tag": "minecraft:is_overworld"
+        }
+      ],
+      "grants": [
+        {
+          "type": "attribute",
+          "attribute": "movement_speed",
+          "amount": 1
+        }
+      ],
+      "events": [],
+      "executions": []
+    }
+  ]
+}

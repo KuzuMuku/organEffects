@@ -41,6 +41,7 @@ Prefer point-bridge design:
 
 - event produces `runtime:*` or `counter:*`
 - execution consumes or observes those points
+- use `source: "self"` when the event-earned source should stay local to the current installed organ instance
 
 ## 3. Make it placeable
 
@@ -105,13 +106,26 @@ Compat rule:
    - runtime points appear when events fire
    - executions consume/use the expected points
    - skills appear in wheel/cast flow if granted
+   - tooltip / hover / potential-effect viewer output matches the organ design
 
 ## Good sample files to copy from
 
-- `wonder_heart.json` - point-bridge regen pulse + conditional grants
-- `wonder_lung.json` - runtime mining momentum + execution buff
-- `wonder_leg_muscle.json` - movement-generated counters/runtime pulses
-- `wonder_eye_of_storm.json` - multi-stage conditional organ example
+- `wonder_brain` - simplest static attribute grant
+- `wonder_brain_v2` - `use_item -> grant_items`
+- `wonder_heart` - `eat -> apply_mob_effect`
+- `wonder_leg_muscle` - `move -> heal`
+- `wonder_tendon` - `attack -> modify_damage`
+- `wonder_lung` - `slot_index -> skill`
+- `wonder_eye_of_storm` - `weather + time -> use_item -> night_vision`
+- `wonder_biome_core` - `biome` / `biome_tag`
+- `wonder_dimension_core` - `dimid`
+- `wonder_light_core` - `lightlevel`
+- `wonder_footing_core` - `stepon` / `block_tag`
+- `wonder_guard_core` - `attacked` / `health_loss`
+- `wonder_hunter_core` - `kill`
+- `wonder_drifter_core` - `biome_change`
+- `wonder_warp_core` - `dimension_change`
+- `wonder_taunt_core` - `taunt`
 
 ## Gotchas
 

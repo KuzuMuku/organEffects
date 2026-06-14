@@ -2,8 +2,8 @@
   "item": "organeffectprocessor:wonder_brain_v2",
   "valid_parts": ["organapi:head"],
   "size": 1,
-  "tooltips": ["An advanced brain with multiple mental enhancements."],
-  "tags": ["wonder", "neural", "advanced"],
+  "tooltips": ["A focused sample organ that grants items from a token."],
+  "tags": ["wonder", "sample", "items"],
   "effects": [
     {
       "conditions": [
@@ -11,13 +11,7 @@
           "type": "static"
         }
       ],
-      "grants": [
-        {
-          "type": "attribute",
-          "attribute": "movement_speed",
-          "amount": 1
-        }
-      ],
+      "grants": [],
       "events": [
         {
           "type": "use_item",

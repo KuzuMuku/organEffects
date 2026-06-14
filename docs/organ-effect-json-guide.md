@@ -111,6 +111,27 @@
 
 ---
 
+### 2.5 `source: "self"`
+
+在 runtime 事件里推荐使用：
+
+```json
+"source": "self"
+```
+
+含义：按**当前器官实例**生成唯一 source tag，而不是把所有同类器官写进一个共享 source。
+
+这不仅影响 `add_points`，也影响后续 execution / event action 对 source-backed 点数的读取与消费。
+
+当前规则可以概括为：
+
+- `runtime:*` 点按全局 runtime key 读取
+- 非 runtime source 点默认按同名 key 聚合为共享池读取/消费
+- 如果显式写死自定义 `source`，则会限制到该 source
+- `self` 用于“当前器官实例自己的 source”，最适合器官局部累积/局部消费的设计
+
+---
+
 ## 3. grants 写法
 
 ### attribute
@@ -234,6 +255,54 @@
 - `exact_position`
 - `symmetric_position`
 
+### biome
+
+```json
+{ "type": "biome", "value": "minecraft:plains" }
+```
+
+也支持 biome tag：
+
+```json
+{ "type": "biome", "biome_tag": "minecraft:is_overworld" }
+```
+
+为了兼容旧草案，也接受：
+
+```json
+{ "type": "biome", "tag": "minecraft:is_overworld" }
+```
+
+### dimid
+
+```json
+{ "type": "dimid", "value": "minecraft:the_nether" }
+```
+
+### lightlevel
+
+```json
+{ "type": "lightlevel", "op": "gte", "value": 12 }
+```
+
+与 `slot_index` 一样支持：`eq`、`ne`、`gt`、`gte`、`lt`、`lte`。
+
+### stepon
+
+```json
+{ "type": "stepon", "block": "minecraft:moss_block" }
+```
+
+也支持 block tag：
+
+```json
+{ "type": "stepon", "block_tag": "minecraft:wool" }
+```
+
+`biome` / `stepon` 推荐优先使用 tag 方案来覆盖一组目标，避免开发者逐个枚举群系或方块。
+
+`movement_speed` 这类速度属性当前按倍率处理，示例值应写成类似 `0.1`（+10%），不要继续按整数加法理解。
+
 ---
 
 ## 5. events 写法
@@ -242,6 +311,11 @@
 
 - `move`
 - `attack`
+- `attacked`
+- `health_loss`
+- `kill`
+- `biome_change`
+- `dimension_change`
 - `eat`
 - `mine`
 - `use_item`
@@ -291,6 +365,53 @@
 
 `bonus_damage_per_point` 会读取/消费点数并在本次攻击中结算额外伤害。
 
+### attacked / health_loss / kill
+
+```json
+{
+  "type": "attacked",
+  "add_points": [
+    {
+      "type": "runtime",
+      "id": "guard_pulse",
+      "amount": 1,
+      "duration_ticks": 2
+    }
+  ]
+}
+```
+
+- `attacked`：有攻击者时，受击者触发
+- `health_loss`：生命值实际损失时触发，不要求攻击者存在（例如摔落、火焰）
+- `kill`：击杀生物时由攻击者触发
+
+兼容别名：
+
+- `受到攻击时 -> attacked`
+- `损失生命时 -> health_loss`
+- `击杀生物时 -> kill`
+- `on_biome_change -> biome_change`
+- `on_dimension_change -> dimension_change`
+
+### biome_change / dimension_change
+
+```json
+{
+  "type": "biome_change",
+  "add_points": [
+    {
+      "type": "runtime",
+      "id": "storm_insight_token",
+      "amount": 1,
+      "duration_ticks": 40
+    }
+  ]
+}
+```
+
+- `biome_change`：玩家进入新 biome 时触发
+- `dimension_change`：玩家切换维度时触发
+
 ### eat / mine / use_item
 
 这些事件通常只写 `add_points` / `consume_points`，再由 `executions` 兑现效果。
@@ -300,6 +421,19 @@
 ## 6. executions 写法
 
 Executions 在玩家 tick / recompute / runtime event 后运行。它们读取或消费点数池。
+
+点数解析顺序：
+
+1. 先检查 `runtime:*`
+2. 再检查 source-backed 同名点数池
+3. `consume_points=false` 时只读取，不扣点
+4. `consume_points=true` 时只扣这次真正使用到的量
+
+关于 recompute 的保留/清理规则：
+
+- 静态 grants 生成的 per-instance source 会在 recompute 时清空并重建
+- event-earned `organ-instance:.../event/...` source 不会因为普通 recompute 被清掉
+- `runtime:*` 点按自己的过期时间与消费逻辑处理，不归静态 recompute 清理
 
 ### apply_mob_effect
 
@@ -347,20 +481,46 @@ Executions 在玩家 tick / recompute / runtime event 后运行。它们读取�
 }
 ```
 
+### taunt
+
+```json
+{
+  "type": "taunt",
+  "point_type": "runtime",
+  "point_id": "brain_reward_token",
+  "amount": 8.0,
+  "target": "hostile",
+  "consume_points": true,
+  "max_consume": 1
+}
+```
+
+目前 `target` 推荐使用 `hostile`，`amount` 表示半径（格）。
+
 ---
 
-## 7. 递进式器官示例
+## 7. 单功能示例器官
 
-`wonder_eye_of_storm` 展示推荐写法：
+现在的示例器官改成了“尽量一个器官一个功能”，便于单独安装测试：
 
-1. 静态基础层：`luck +1`
-2. 雨夜进阶层：`movement_speed +1`
-3. 雨夜行为层：使用 point viewer 产 `storm_insight_token`
-4. execution 层：消费 token 给夜视
+- `wonder_brain`：最简单的静态 attribute grant
+- `wonder_brain_v2`：`use_item -> grant_items`
+- `wonder_heart`：`eat -> apply_mob_effect`
+- `wonder_leg_muscle`：`move -> heal`
+- `wonder_tendon`：`attack -> modify_damage`
+- `wonder_lung`：`slot_index -> skill`
+- `wonder_eye_of_storm`：`weather + time -> use_item -> night_vision`
+- `wonder_biome_core`：`biome` / `biome_tag`
+- `wonder_dimension_core`：`dimid`
+- `wonder_light_core`：`lightlevel`
+- `wonder_footing_core`：`stepon` / `block_tag`
+- `wonder_guard_core`：`attacked` / `health_loss`
+- `wonder_hunter_core`：`kill`
+- `wonder_drifter_core`：`biome_change`
+- `wonder_warp_core`：`dimension_change`
+- `wonder_taunt_core`：`taunt`
 
-查看：
-
-- `src/main/resources/data/organeffectprocessor/organapi/organs/wonder_eye_of_storm.json`
+优先按“单器官单功能”方式验证，避免多个 demo 逻辑混在一起时互相干扰。
 
 ---
 
@@ -439,5 +599,8 @@ OepExtensionApi.registerPointExecutor(new PointExecutor() {
 - `has_organ` 不支持数量比较
 - `symmetric_position` 当前只支持左右臂、左右腿
 - 属性修正统一使用 ADDITION
+- `stepon` 属于静态 condition，是否生效依赖定期 recompute，不是逐 tick 精确切换
+- `biome_change` 当前通过玩家 tick 里记录 biome key 变化检测
+- `taunt` 是尽量把附近敌对生物目标切到玩家，部分 AI 可能会很快覆盖该目标
 - 伤害修改 action 仍依赖 attack event 即时上下文
 - runtime point 数值是 long；小数语义建议放在 action 参数中表达

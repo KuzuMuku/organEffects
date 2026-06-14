@@ -1,0 +1,33 @@
+{
+  "item": "organeffectprocessor:wonder_warp_core",
+  "valid_parts": ["organapi:head"],
+  "size": 1,
+  "tooltips": ["A sample organ that reacts when you change dimensions."],
+  "tags": ["wonder", "sample", "dimension_change"],
+  "effects": [
+    {
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [],
+      "events": [
+        {
+          "type": "dimension_change",
+          "add_points": [
+            {
+              "type": "counter",
+              "id": "focus",
+              "amount": 1,
+              "source": "self"
+            }
+          ],
+          "consume_points": [],
+          "actions": []
+        }
+      ],
+      "executions": []
+    }
+  ]
+}

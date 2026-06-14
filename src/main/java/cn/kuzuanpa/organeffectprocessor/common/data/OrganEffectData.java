@@ -72,7 +72,6 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 if (!definitions.isEmpty()) {
                     ResourceLocation definitionId = toDefinitionId(entry.getKey());
                     result.put(definitionId, definitions);
-                    logWonderLungDebug(definitionId, definitions);
                 }
             } catch (Exception e) {
                 LOGGER.warn("Failed to load organ effect data from {}: {}", entry.getKey(), e.getMessage());
@@ -135,11 +134,16 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         String type = GsonHelper.getAsString(conditionObj, "type");
         try {
             return switch (type) {
-                case "static" -> new EffectDefinition.Condition("static", null, null, null, null, null, null, null, null, null, null, null);
+                case "static" -> new EffectDefinition.Condition("static", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
                 case "slot_index" -> new EffectDefinition.Condition(
                         "slot_index",
                         readOperator(conditionObj),
                         GsonHelper.getAsLong(conditionObj, "value"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -162,6 +166,11 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
                         null
                 );
                 case "weather" -> new EffectDefinition.Condition(
@@ -172,6 +181,11 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                         null,
                         null,
                         GsonHelper.getAsString(conditionObj, "value"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -190,6 +204,11 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
                         null
                 );
                 case "has_organ" -> new EffectDefinition.Condition(
@@ -204,13 +223,104 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                         GsonHelper.getAsString(conditionObj, "scope"),
                         GsonHelper.getAsString(conditionObj, "body_part", null),
                         conditionObj.has("slot") ? GsonHelper.getAsInt(conditionObj, "slot") : null,
-                        normalizeId(GsonHelper.getAsString(conditionObj, "organ"), fileId.getNamespace(), false)
+                        normalizeId(GsonHelper.getAsString(conditionObj, "organ"), fileId.getNamespace(), false),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
+                case "biome" -> new EffectDefinition.Condition(
+                        "biome",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        conditionObj.has("value") ? normalizeId(GsonHelper.getAsString(conditionObj, "value"), fileId.getNamespace(), false) : null,
+                        readBiomeTag(conditionObj, fileId.getNamespace()),
+                        null,
+                        null,
+                        null
+                );
+                case "dimid" -> new EffectDefinition.Condition(
+                        "dimid",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        normalizeId(GsonHelper.getAsString(conditionObj, "value"), fileId.getNamespace(), false),
+                        null,
+                        null
+                );
+                case "lightlevel" -> new EffectDefinition.Condition(
+                        "lightlevel",
+                        readOperator(conditionObj),
+                        GsonHelper.getAsLong(conditionObj, "value"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                );
+                case "stepon" -> new EffectDefinition.Condition(
+                        "stepon",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        conditionObj.has("block") ? normalizeId(GsonHelper.getAsString(conditionObj, "block"), fileId.getNamespace(), false) : null,
+                        GsonHelper.getAsString(conditionObj, "block_tag", null)
                 );
                 default -> throw new IllegalArgumentException("Unknown condition type: " + type);
             };
         } catch (Exception e) {
             throw new IllegalArgumentException("Condition " + conditionIndex + " of effect " + effectIndex + " in " + fileId + " is invalid: " + e.getMessage(), e);
         }
+    }
+
+    private static String readBiomeTag(JsonObject conditionObj, String defaultNamespace) {
+        if (conditionObj.has("biome_tag")) {
+            return normalizeId(GsonHelper.getAsString(conditionObj, "biome_tag"), defaultNamespace, false);
+        }
+        if (conditionObj.has("tag")) {
+            return normalizeId(GsonHelper.getAsString(conditionObj, "tag"), defaultNamespace, false);
+        }
+        return null;
     }
 
     private static String readOperator(JsonObject conditionObj) {
@@ -258,7 +368,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
     }
 
     private static EffectDefinition.EventRule readEventRule(JsonObject eventObj, String defaultNamespace) {
-        String type = GsonHelper.getAsString(eventObj, "type");
+        String type = normalizeEventType(GsonHelper.getAsString(eventObj, "type"));
         Long distance = eventObj.has("distance") ? GsonHelper.getAsLong(eventObj, "distance") : null;
         String source = GsonHelper.getAsString(eventObj, "source", null);
         String item = eventObj.has("item") ? normalizeId(GsonHelper.getAsString(eventObj, "item"), defaultNamespace, false) : null;
@@ -270,6 +380,17 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         List<EffectDefinition.PointMutation> consumePoints = readPointMutations(eventObj, "consume_points", defaultNamespace);
         List<EffectDefinition.BonusAction> actions = readBonusActions(eventObj, defaultNamespace);
         return new EffectDefinition.EventRule(type, distance, source, item, itemTag, block, blockTag, foodOnly, addPoints, consumePoints, actions);
+    }
+
+    private static String normalizeEventType(String rawType) {
+        return switch (rawType) {
+            case "受到攻击时" -> "attacked";
+            case "损失生命时" -> "health_loss";
+            case "击杀生物时" -> "kill";
+            case "on_biome_change" -> "biome_change";
+            case "on_dimension_change" -> "dimension_change";
+            default -> rawType;
+        };
     }
 
     private static List<EffectDefinition.PointMutation> readPointMutations(JsonObject eventObj, String fieldName, String defaultNamespace) {
@@ -427,30 +548,5 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         }
         String namespace = preferMinecraftNamespace ? "minecraft" : defaultNamespace;
         return ResourceLocation.fromNamespaceAndPath(namespace, rawId).toString();
-    }
-
-    private static void logWonderLungDebug(ResourceLocation definitionId, List<EffectDefinition> definitions) {
-        if (!"organeffectprocessor:wonder_lung".equals(definitionId.toString())) {
-            return;
-        }
-        for (int effectIndex = 0; effectIndex < definitions.size(); effectIndex++) {
-            EffectDefinition effect = definitions.get(effectIndex);
-            for (EffectDefinition.EventRule eventRule : effect.events()) {
-                LOGGER.info("[OEPDBG][load] wonder_lung effect#{} event={} addPoints={} consumePoints={} actions={}",
-                        effectIndex, eventRule.type(), eventRule.addPoints().size(), eventRule.consumePoints().size(), eventRule.actions().size());
-            }
-            for (EffectDefinition.BonusAction execution : effect.executions()) {
-                LOGGER.info("[OEPDBG][load] wonder_lung effect#{} execution type={} point={}:{} consume={} max={} effect={} duration={} amp={}",
-                        effectIndex,
-                        execution.type(),
-                        execution.pointType(),
-                        execution.pointId(),
-                        execution.consumePoints(),
-                        execution.maxConsume(),
-                        execution.effectId(),
-                        execution.durationTicks(),
-                        execution.amplifier());
-            }
-        }
     }
 }

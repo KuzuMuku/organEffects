@@ -90,5 +90,6 @@ Recommended compat pattern:
 
 - if an organ item is missing `organapi:organs`, it will not be placeable
 - the point viewer forces recompute, so it can hide stale-event bugs if you only test with it
+- `source: "self"` resolves to an organ-instance-local source; executions and point-based event actions read `runtime:*` first, then pooled source-backed points
 - current damage-modifying event actions still run in event context; non-damage effects should go through point-pool bridging
 - README and docs are intended for humans; the skills are the fast path for agents and repeat contributors

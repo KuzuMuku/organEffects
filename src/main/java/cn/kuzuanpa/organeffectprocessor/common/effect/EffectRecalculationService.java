@@ -22,14 +22,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class EffectRecalculationService {
     public static final String ORGAN_SOURCE = "organ";
     public static final String ORGAN_INSTANCE_SOURCE_PREFIX = "organ-instance:";
+    public static final String ORGAN_STATIC_INSTANCE_SOURCE_PREFIX = "organ-static-instance:";
     private static final long DAY_TICKS = 24000L;
 
     private EffectRecalculationService() {
@@ -41,13 +50,14 @@ public final class EffectRecalculationService {
             return Map.of();
         }
 
-        EvaluationContext context = EvaluationContext.create(entity);
-        EffectPointMap pointMap = new EffectPointMap();
-        computeEffects(context, pointMap);
-
-        holder.clearSourcesWithPrefix(ORGAN_INSTANCE_SOURCE_PREFIX);
         Map<String, Long> oldPoints = holder.getEffectPoints();
-        holder.replaceSourcePoints(ORGAN_SOURCE, pointMap.snapshot());
+        EvaluationContext context = EvaluationContext.create(entity);
+        // Static effect-instance sources are fully recomputed each pass.
+        // Event-earned organ-instance sources (for example source:self from runtime events)
+        // deliberately use a different prefix and must survive recompute until consumed/cleared.
+        holder.clearSourcesWithPrefix(ORGAN_STATIC_INSTANCE_SOURCE_PREFIX);
+        computeEffects(context, holder);
+
         computeExtensionPoints(entity, holder, context);
         if (entity instanceof Player player) {
             RuntimePointExecutor.execute(player);
@@ -77,20 +87,27 @@ public final class EffectRecalculationService {
         }
     }
 
-    private static void computeEffects(EvaluationContext context, EffectPointMap target) {
-        target.clear();
+    private static void computeEffects(EvaluationContext context, IEffectHolder holder) {
         for (OrganPosition pos : context.positions()) {
             ResourceLocation organId = context.organId(pos);
             if (organId == null) {
                 continue;
             }
 
+            int effectIndex = 0;
             for (EffectDefinition effect : OrganEffectData.INSTANCE.getEffectsForOrgan(organId)) {
+                String source = ORGAN_STATIC_INSTANCE_SOURCE_PREFIX
+                        + organId + "@" + pos.bodyPartId() + "#" + pos.slotIndex() + "/effect/" + effectIndex;
                 if (evaluateConditions(context, pos, effect.conditions())) {
+                    EffectPointMap pointMap = new EffectPointMap();
                     for (EffectDefinition.Grant grant : effect.grants()) {
-                        target.add(grant.type() + ":" + grant.id(), grant.amount());
+                        pointMap.add(grant.type() + ":" + grant.id(), grant.amount());
                     }
+                    holder.replaceSourcePoints(source, pointMap.snapshot());
+                } else {
+                    holder.replaceSourcePoints(source, Map.of());
                 }
+                effectIndex++;
             }
         }
     }
@@ -125,6 +142,10 @@ public final class EffectRecalculationService {
             case "weather" -> matchesWeather(context, condition.weather());
             case "time" -> matchesTime(context, condition);
             case "has_organ" -> matchesOrganLink(context, pos, condition);
+            case "biome" -> matchesBiome(context, condition);
+            case "dimid" -> matchesDimension(context, condition.dimension());
+            case "lightlevel" -> matchesLightLevel(context, condition);
+            case "stepon" -> matchesStepOn(context, condition);
             default -> false;
         };
     }
@@ -187,6 +208,59 @@ public final class EffectRecalculationService {
                     .orElse(false);
             default -> false;
         };
+    }
+
+    private static boolean matchesBiome(EvaluationContext context, EffectDefinition.Condition condition) {
+        Holder<Biome> biomeHolder = context.biome();
+        if (condition.biome() != null) {
+            ResourceLocation biomeId = ResourceLocation.tryParse(condition.biome());
+            if (biomeId == null || !biomeHolder.is(ResourceKey.create(Registries.BIOME, biomeId))) {
+                return false;
+            }
+        }
+        if (condition.biomeTag() != null) {
+            ResourceLocation biomeTagId = ResourceLocation.tryParse(condition.biomeTag());
+            if (biomeTagId == null || !biomeHolder.is(TagKey.create(Registries.BIOME, biomeTagId))) {
+                return false;
+            }
+        }
+        return condition.biome() != null || condition.biomeTag() != null;
+    }
+
+    private static boolean matchesDimension(EvaluationContext context, String dimension) {
+        if (dimension == null) {
+            return false;
+        }
+        ResourceLocation dimensionId = context.entity().level().dimension().location();
+        return dimension.equals(dimensionId.toString());
+    }
+
+    private static boolean matchesLightLevel(EvaluationContext context, EffectDefinition.Condition condition) {
+        if (condition.value() == null || condition.operator() == null) {
+            return false;
+        }
+        long lightLevel = context.entity().level().getMaxLocalRawBrightness(context.blockPos());
+        return compareLong(lightLevel, condition.operator(), condition.value());
+    }
+
+    private static boolean matchesStepOn(EvaluationContext context, EffectDefinition.Condition condition) {
+        BlockState blockState = context.steppedOnBlock();
+        if (blockState == null) {
+            return false;
+        }
+        if (condition.block() != null) {
+            ResourceLocation blockId = net.minecraftforge.registries.ForgeRegistries.BLOCKS.getKey(blockState.getBlock());
+            if (blockId == null || !condition.block().equals(blockId.toString())) {
+                return false;
+            }
+        }
+        if (condition.blockTag() != null) {
+            ResourceLocation blockTagId = ResourceLocation.tryParse(condition.blockTag());
+            if (blockTagId == null || !blockState.is(TagKey.create(net.minecraft.core.registries.Registries.BLOCK, blockTagId))) {
+                return false;
+            }
+        }
+        return condition.block() != null || condition.blockTag() != null;
     }
 
     private static boolean compareLong(long actual, String operator, Long expected) {
@@ -294,6 +368,20 @@ public final class EffectRecalculationService {
                 case "right" -> grid.columns() - 1L - column;
                 default -> Long.MAX_VALUE;
             };
+        }
+
+        public BlockPos blockPos() {
+            return entity.blockPosition();
+        }
+
+        public Holder<Biome> biome() {
+            return entity.level().getBiome(blockPos());
+        }
+
+        public BlockState steppedOnBlock() {
+            Level level = entity.level();
+            BlockPos belowPos = blockPos().below();
+            return level.isLoaded(belowPos) ? level.getBlockState(belowPos) : null;
         }
     }
 

@@ -11,9 +11,14 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.EntitySelector;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.targeting.TargetingConditions;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public final class OepExtensionApi {
@@ -43,6 +48,7 @@ public final class OepExtensionApi {
         registerPointExecutor(new GrantItemsExecutor());
         registerPointExecutor(new ApplyMobEffectExecutor());
         registerPointExecutor(new HealExecutor());
+        registerPointExecutor(new TauntExecutor());
     }
 
     private static final class GrantItemsExecutor implements PointExecutor {
@@ -157,7 +163,14 @@ public final class OepExtensionApi {
 
         @Override
         public void execute(PointExecutionContext context, EffectDefinition.BonusAction action) {
-            PointUsage usage = context.resolveUsage(action);
+            if (context.player().getHealth() >= context.player().getMaxHealth()) {
+                return;
+            }
+            PointUsage preview = context.resolveUsage(action);
+            if (preview.usedPoints() <= 0L) {
+                return;
+            }
+            PointUsage usage = cn.kuzuanpa.organeffectprocessor.common.effect.RuntimePointExecutor.consumePointUsage(context.player(), context.holder(), action);
             if (usage.usedPoints() <= 0L) {
                 return;
             }
@@ -165,6 +178,38 @@ public final class OepExtensionApi {
                     + usage.usedPoints() * (action.amountPerPoint() != null ? action.amountPerPoint() : 0.0D);
             if (total > 0.0D) {
                 context.player().heal((float) total);
+            }
+        }
+    }
+
+    private static final class TauntExecutor implements PointExecutor {
+        @Override
+        public String type() {
+            return "taunt";
+        }
+
+        @Override
+        public void execute(PointExecutionContext context, EffectDefinition.BonusAction action) {
+            PointUsage usage = context.resolveUsage(action);
+            if (usage.usedPoints() <= 0L) {
+                return;
+            }
+            Player player = context.player();
+            double radius = action.amount() != null ? Math.max(1.0D, action.amount()) : 8.0D;
+            AABB area = player.getBoundingBox().inflate(radius);
+            List<Mob> mobs = player.level().getEntitiesOfClass(Mob.class, area, mob -> mob instanceof Enemy
+                    && mob.isAlive()
+                    && EntitySelector.NO_SPECTATORS.test(mob)
+                    && mob.canAttack(player));
+            for (Mob mob : mobs) {
+                if (!"hostile".equals(action.target()) && action.target() != null && !action.target().isBlank()) {
+                    continue;
+                }
+                if (!mob.getSensing().hasLineOfSight(player) && !TargetingConditions.DEFAULT.test(mob, player)) {
+                    continue;
+                }
+                mob.setTarget(player);
+                mob.setLastHurtByMob(player);
             }
         }
     }
