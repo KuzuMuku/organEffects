@@ -4,6 +4,7 @@ import cn.kuzuanpa.organapi.api.query.OrganPosition;
 import cn.kuzuanpa.organapi.api.query.OrganQueryService;
 import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
 import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
+import cn.kuzuanpa.organeffectprocessor.api.extension.OepRuntimeEvent;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.data.OrganEffectData;
@@ -43,41 +44,59 @@ public final class RuntimeEffectService {
     }
 
     public static void handleEat(LivingEntity entity, ItemStack stack) {
-        handleEvent(entity, new RuntimeEventContext("eat", entity, null, null, stack, null, 0.0D, 0.0D));
+        fireEvent(entity, OepRuntimeEvent.builder("eat", entity).itemStack(stack).build());
     }
 
     public static void handleMine(Player player, BlockState state) {
-        handleEvent(player, new RuntimeEventContext("mine", player, null, null, ItemStack.EMPTY, state, 0.0D, 0.0D));
+        fireEvent(player, OepRuntimeEvent.builder("mine", player).blockState(state).build());
     }
 
     public static void handleUseItem(Player player, ItemStack stack) {
-        handleEvent(player, new RuntimeEventContext("use_item", player, null, null, stack, null, 0.0D, 0.0D));
+        fireEvent(player, OepRuntimeEvent.builder("use_item", player).itemStack(stack).build());
     }
 
     public static void handleAttacked(LivingEntity victim, LivingEntity attacker, Entity directEntity, float damageAmount) {
-        handleEvent(victim, new RuntimeEventContext("attacked", victim, attacker, directEntity, ItemStack.EMPTY, null, 0.0D, damageAmount));
+        fireEvent(victim, OepRuntimeEvent.builder("attacked", victim)
+                .target(attacker)
+                .directEntity(directEntity)
+                .amount(damageAmount)
+                .build());
     }
 
     public static void handleHealthLoss(LivingEntity entity, Entity sourceEntity, Entity directEntity, float damageAmount) {
         LivingEntity attacker = sourceEntity instanceof LivingEntity living ? living : null;
-        handleEvent(entity, new RuntimeEventContext("health_loss", entity, attacker, directEntity, ItemStack.EMPTY, null, 0.0D, damageAmount));
+        fireEvent(entity, OepRuntimeEvent.builder("health_loss", entity)
+                .target(attacker)
+                .directEntity(directEntity)
+                .amount(damageAmount)
+                .build());
     }
 
     public static void handleKill(LivingEntity attacker, LivingEntity target, Entity directEntity) {
-        handleEvent(attacker, new RuntimeEventContext("kill", attacker, target, directEntity, ItemStack.EMPTY, null, 0.0D, 0.0D));
+        fireEvent(attacker, OepRuntimeEvent.builder("kill", attacker)
+                .target(target)
+                .directEntity(directEntity)
+                .build());
     }
 
     public static void handleBiomeChange(Player player) {
-        handleEvent(player, new RuntimeEventContext("biome_change", player, null, null, ItemStack.EMPTY, null, 0.0D, 0.0D));
+        fireEvent(player, OepRuntimeEvent.builder("biome_change", player).build());
     }
 
     public static void handleDimensionChange(Player player) {
-        handleEvent(player, new RuntimeEventContext("dimension_change", player, null, null, ItemStack.EMPTY, null, 0.0D, 0.0D));
+        fireEvent(player, OepRuntimeEvent.builder("dimension_change", player).build());
     }
 
-    public static float handleAttack(LivingEntity attacker, LivingEntity target, Entity directEntity, float baseDamage) {
-        RuntimeEventContext eventContext = new RuntimeEventContext("attack", attacker, target, directEntity, ItemStack.EMPTY, null, 0.0D, baseDamage);
-        return (float) (baseDamage + handleEvent(attacker, eventContext));
+    public static void handleAttack(LivingEntity attacker, LivingEntity target, Entity directEntity, float baseDamage) {
+        fireEvent(attacker, OepRuntimeEvent.builder("attack", attacker)
+                .target(target)
+                .directEntity(directEntity)
+                .amount(baseDamage)
+                .build());
+    }
+
+    public static void fireEvent(LivingEntity entity, OepRuntimeEvent event) {
+        handleEvent(entity, event);
     }
 
     private static MoveResult handleMoveEvent(Player player, double totalDistance) {
@@ -86,13 +105,15 @@ public final class RuntimeEffectService {
             return new MoveResult(0.0D);
         }
         double maxConsumedDistance = 0.0D;
-        RuntimeEventContext eventContext = new RuntimeEventContext("move", player, null, null, ItemStack.EMPTY, null, totalDistance, 0.0D);
-        for (EffectInstance instance : collectMatchingEffects(player, eventContext.type())) {
+        OepRuntimeEvent event = OepRuntimeEvent.builder("move", player)
+                .distanceMoved(totalDistance)
+                .build();
+        for (EffectInstance instance : collectMatchingEffects(player, event.type())) {
             if (!EffectRecalculationService.evaluateConditions(player, instance.position(), instance.effect().conditions())) {
                 continue;
             }
             for (EffectDefinition.EventRule eventRule : instance.effect().events()) {
-                if (!eventContext.type().equals(eventRule.type()) || !matchesEventFilter(eventRule, eventContext)) {
+                if (!event.type().equals(eventRule.type()) || !matchesEventFilter(eventRule, event)) {
                     continue;
                 }
                 long distance = eventRule.distance() != null ? eventRule.distance() : 1L;
@@ -104,7 +125,6 @@ public final class RuntimeEffectService {
                     continue;
                 }
                 applyPointMutations(player, holder, instance, eventRule.addPoints(), steps);
-                applyImmediateExecutions(eventContext, holder, instance, eventRule.actions(), steps);
                 applyConsumes(player, holder, instance, eventRule.consumePoints());
                 RuntimePointExecutor.execute(player);
                 maxConsumedDistance = Math.max(maxConsumedDistance, steps * distance);
@@ -113,22 +133,21 @@ public final class RuntimeEffectService {
         return new MoveResult(totalDistance - maxConsumedDistance);
     }
 
-    private static double handleEvent(Entity entity, RuntimeEventContext eventContext) {
+    private static void handleEvent(Entity entity, OepRuntimeEvent event) {
         IEffectHolder holder = entity.getCapability(EffectCapabilities.EFFECT_HOLDER).orElse(null);
         if (holder == null) {
-            return 0.0D;
+            return;
         }
-        double bonus = 0.0D;
-        for (EffectInstance instance : collectMatchingEffects(entity, eventContext.type())) {
+        for (EffectInstance instance : collectMatchingEffects(entity, event.type())) {
             boolean conditionsMatch = EffectRecalculationService.evaluateConditions(entity, instance.position(), instance.effect().conditions());
             if (entity instanceof Player player) {
-                OepDebug.trace(player, "event %s organ=%s slot=%s#%d conditions=%s", eventContext.type(), instance.organId(), instance.position().bodyPartId(), instance.position().slotIndex(), conditionsMatch);
+                OepDebug.trace(player, "event %s organ=%s slot=%s#%d conditions=%s", event.type(), instance.organId(), instance.position().bodyPartId(), instance.position().slotIndex(), conditionsMatch);
             }
             if (!conditionsMatch) {
                 continue;
             }
             for (EffectDefinition.EventRule eventRule : instance.effect().events()) {
-                boolean filterMatch = eventContext.type().equals(eventRule.type()) && matchesEventFilter(eventRule, eventContext);
+                boolean filterMatch = event.type().equals(eventRule.type()) && matchesEventFilter(eventRule, event);
                 if (entity instanceof Player player) {
                     OepDebug.trace(player, "event rule %s matched=%s", eventRule.type(), filterMatch);
                 }
@@ -136,62 +155,10 @@ public final class RuntimeEffectService {
                     continue;
                 }
                 applyPointMutations(entity, holder, instance, eventRule.addPoints(), 1L);
-                bonus += applyImmediateExecutions(eventContext, holder, instance, eventRule.actions(), 1L);
                 applyConsumes(entity, holder, instance, eventRule.consumePoints());
                 if (entity instanceof Player player) {
                     RuntimePointExecutor.execute(player);
                 }
-            }
-        }
-        return bonus;
-    }
-
-    private static double applyImmediateExecutions(RuntimeEventContext eventContext, IEffectHolder holder, EffectInstance instance,
-                                                   List<EffectDefinition.BonusAction> actions, long multiplier) {
-        double damageBonus = 0.0D;
-        for (EffectDefinition.BonusAction action : actions) {
-            long successfulApplications = countSuccessfulApplications(eventContext.entity(), action.chance(), multiplier);
-            if (successfulApplications <= 0L) {
-                continue;
-            }
-            switch (action.type()) {
-                case "bonus_damage_per_point", "modify_damage" -> damageBonus += applyModifyDamage(eventContext, holder, instance, action) * successfulApplications;
-                case "mutate_points" -> {
-                    for (long index = 0L; index < successfulApplications; index++) {
-                        applyPointAction(eventContext.entity(), holder, instance, action);
-                    }
-                }
-                default -> {
-                }
-            }
-        }
-        return damageBonus;
-    }
-
-    private static double applyModifyDamage(RuntimeEventContext eventContext, IEffectHolder holder, EffectInstance instance, EffectDefinition.BonusAction action) {
-        if (!"attack".equals(eventContext.type()) || !matchesDamageKind(eventContext, action.damageKind())) {
-            return 0.0D;
-        }
-        PointUsage usage = resolvePointUsage(holder, instance, action);
-        return resolveFlatAmount(action) + usage.usedPoints() * resolveAmountPerPoint(action);
-    }
-
-    private static void applyPointAction(Entity entity, IEffectHolder holder, EffectInstance instance, EffectDefinition.BonusAction action) {
-        if (action.pointType() == null || action.pointId() == null || action.pointOperation() == null) {
-            return;
-        }
-        long amount = action.pointAmount() != null ? action.pointAmount() : 0L;
-        if (amount <= 0L) {
-            return;
-        }
-        long expireAtTick = action.durationTicks() != null && action.durationTicks() > 0 && entity != null
-                ? entity.level().getGameTime() + action.durationTicks()
-                : 0L;
-        String pointKey = action.pointType() + ":" + action.pointId();
-        switch (action.pointOperation()) {
-            case "add" -> holder.addRuntimePoint(pointKey, amount, expireAtTick);
-            case "consume" -> holder.consumeRuntimePoint(pointKey, amount);
-            default -> {
             }
         }
     }
@@ -256,60 +223,26 @@ public final class RuntimeEffectService {
         }
     }
 
-    private static PointUsage resolvePointUsage(IEffectHolder holder, EffectInstance instance, EffectDefinition.BonusAction action) {
-        if (action.pointType() == null || action.pointId() == null) {
-            return new PointUsage(0L);
-        }
-        String pointKey = action.pointType() + ":" + action.pointId();
-        long runtimeAvailable = holder.getRuntimePoints().getOrDefault(pointKey, 0L);
-        if (runtimeAvailable > 0L) {
-            long capped = Math.min(runtimeAvailable, action.maxConsume());
-            long used = action.consumePoints() ? holder.consumeRuntimePoint(pointKey, capped) : capped;
-            return new PointUsage(Math.max(0L, used));
-        }
-        long available = holder.getPooledSourcePoints(pointKey, action.source());
-        long capped = Math.min(available, action.maxConsume());
-        long used = action.consumePoints() ? holder.consumePooledSourcePoints(pointKey, action.source(), capped) : capped;
-        return new PointUsage(Math.max(0L, used));
-    }
-
-    private static double resolveFlatAmount(EffectDefinition.BonusAction action) {
-        return action.amount() != null ? action.amount() : 0.0D;
-    }
-
-    private static double resolveAmountPerPoint(EffectDefinition.BonusAction action) {
-        return action.amountPerPoint() != null ? action.amountPerPoint() : 0.0D;
-    }
-
-    private static boolean matchesDamageKind(RuntimeEventContext eventContext, String damageKind) {
-        String kind = damageKind == null ? "any" : damageKind;
-        return switch (kind) {
-            case "melee" -> !eventContext.isProjectileAttack();
-            case "projectile" -> eventContext.isProjectileAttack();
-            default -> true;
-        };
-    }
-
-    private static boolean matchesEventFilter(EffectDefinition.EventRule eventRule, RuntimeEventContext eventContext) {
-        if (eventRule.foodOnly() && (eventContext.itemStack().isEmpty() || !eventContext.itemStack().isEdible())) {
+    private static boolean matchesEventFilter(EffectDefinition.EventRule eventRule, OepRuntimeEvent event) {
+        if (eventRule.foodOnly() && (event.itemStack().isEmpty() || !event.itemStack().isEdible())) {
             return false;
         }
         if (eventRule.item() != null) {
-            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(eventContext.itemStack().getItem());
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(event.itemStack().getItem());
             if (!Objects.equals(eventRule.item(), itemId != null ? itemId.toString() : null)) {
                 return false;
             }
         }
-        if (eventRule.itemTag() != null && !eventContext.itemStack().is(tag(ItemTags::create, eventRule.itemTag()))) {
+        if (eventRule.itemTag() != null && !event.itemStack().is(tag(ItemTags::create, eventRule.itemTag()))) {
             return false;
         }
         if (eventRule.block() != null) {
-            ResourceLocation blockId = eventContext.blockState() == null ? null : ForgeRegistries.BLOCKS.getKey(eventContext.blockState().getBlock());
+            ResourceLocation blockId = event.blockState() == null ? null : ForgeRegistries.BLOCKS.getKey(event.blockState().getBlock());
             if (!Objects.equals(eventRule.block(), blockId != null ? blockId.toString() : null)) {
                 return false;
             }
         }
-        if (eventRule.blockTag() != null && (eventContext.blockState() == null || !eventContext.blockState().is(tag(BlockTags::create, eventRule.blockTag())))) {
+        if (eventRule.blockTag() != null && (event.blockState() == null || !event.blockState().is(tag(BlockTags::create, eventRule.blockTag())))) {
             return false;
         }
         return true;
@@ -395,25 +328,7 @@ public final class RuntimeEffectService {
     private record EffectInstance(ResourceLocation organId, OrganPosition position, EffectDefinition effect, int effectIndex) {
     }
 
-    private record RuntimeEventContext(
-            String type,
-            LivingEntity entity,
-            LivingEntity target,
-            Entity directEntity,
-            ItemStack itemStack,
-            BlockState blockState,
-            double distanceMoved,
-            double baseDamage
-    ) {
-        private boolean isProjectileAttack() {
-            return directEntity != null && directEntity != entity;
-        }
-    }
-
     private record MoveResult(double remainder) {
-    }
-
-    private record PointUsage(long usedPoints) {
     }
 
     @FunctionalInterface

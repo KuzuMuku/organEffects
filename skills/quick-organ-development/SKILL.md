@@ -89,7 +89,16 @@ Use this when:
 
 - another mod’s API/state must be queried in Java
 - you need a custom point producer
+- you need a custom condition type
 - you need a custom execution type
+- you need to inject a custom runtime event from Java compat or mixin code
+
+Main extension entry points now include:
+
+- `OepExtensionApi.registerPointProducer(...)`
+- `OepExtensionApi.registerConditionHandler(...)`
+- `OepExtensionApi.registerPointExecutor(...)`
+- `RuntimeEffectService.fireEvent(...)` with `OepRuntimeEvent`
 
 Compat rule:
 
@@ -114,7 +123,7 @@ Compat rule:
 - `wonder_brain_v2` - `use_item -> grant_items`
 - `wonder_heart` - `eat -> apply_mob_effect`
 - `wonder_leg_muscle` - `move -> heal`
-- `wonder_tendon` - `attack -> modify_damage`
+- `wonder_tendon` - `attack -> runtime charge`
 - `wonder_lung` - `slot_index -> skill`
 - `wonder_eye_of_storm` - `weather + time -> use_item -> night_vision`
 - `wonder_biome_core` - `biome` / `biome_tag`

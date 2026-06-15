@@ -3,12 +3,15 @@ package cn.kuzuanpa.organeffectprocessor.api.extension;
 import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
+import cn.kuzuanpa.organeffectprocessor.common.effect.EffectRecalculationService;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntitySelector;
@@ -18,12 +21,15 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public final class OepExtensionApi {
     private static final Map<String, PointProducer> POINT_PRODUCERS = new LinkedHashMap<>();
     private static final Map<String, PointExecutor> POINT_EXECUTORS = new LinkedHashMap<>();
+    private static final Map<String, ConditionHandler> CONDITION_HANDLERS = new LinkedHashMap<>();
 
     private OepExtensionApi() {
     }
@@ -36,6 +42,10 @@ public final class OepExtensionApi {
         POINT_EXECUTORS.put(executor.type(), executor);
     }
 
+    public static void registerConditionHandler(String type, ConditionHandler handler) {
+        CONDITION_HANDLERS.put(type, handler);
+    }
+
     public static Collection<PointProducer> getPointProducers() {
         return List.copyOf(POINT_PRODUCERS.values());
     }
@@ -44,11 +54,129 @@ public final class OepExtensionApi {
         return POINT_EXECUTORS.get(type);
     }
 
+    public static ConditionHandler getConditionHandler(String type) {
+        return CONDITION_HANDLERS.get(type);
+    }
+
     public static void registerBuiltins() {
+        registerBuiltinConditions();
         registerPointExecutor(new GrantItemsExecutor());
         registerPointExecutor(new ApplyMobEffectExecutor());
         registerPointExecutor(new HealExecutor());
         registerPointExecutor(new TauntExecutor());
+    }
+
+    private static void registerBuiltinConditions() {
+        registerConditionHandler("static", (context, condition) -> true);
+        registerConditionHandler("slot_index", (context, condition) -> EffectRecalculationService.compareLong(context.position().slotIndex(), condition.operator(), condition.value()));
+        registerConditionHandler("distance_to_edge", (context, condition) -> EffectRecalculationService.compareLong(
+                context.evaluationContext().distanceToEdge(context.position(), condition.edge()),
+                condition.operator(),
+                condition.value()));
+        registerConditionHandler("weather", (context, condition) -> {
+            if (condition.weather() == null) {
+                return false;
+            }
+            return switch (condition.weather()) {
+                case "clear" -> !context.evaluationContext().entity().level().isRaining() && !context.evaluationContext().entity().level().isThundering();
+                case "rain" -> context.evaluationContext().entity().level().isRaining() && !context.evaluationContext().entity().level().isThundering();
+                case "thunder" -> context.evaluationContext().entity().level().isThundering();
+                default -> false;
+            };
+        });
+        registerConditionHandler("time", (context, condition) -> {
+            if (condition.time() != null) {
+                return switch (condition.time()) {
+                    case "day" -> context.evaluationContext().entity().level().isDay();
+                    case "night" -> !context.evaluationContext().entity().level().isDay();
+                    default -> false;
+                };
+            }
+            long timeOfDay = Math.floorMod(context.evaluationContext().entity().level().getDayTime(), EffectRecalculationService.dayTicks());
+            if (condition.min() != null || condition.max() != null) {
+                long min = condition.min() != null ? condition.min() : 0L;
+                long max = condition.max() != null ? condition.max() : EffectRecalculationService.dayTicks() - 1L;
+                if (min <= max) {
+                    return timeOfDay >= min && timeOfDay <= max;
+                }
+                return timeOfDay >= min || timeOfDay <= max;
+            }
+            return EffectRecalculationService.compareLong(timeOfDay, condition.operator(), condition.value());
+        });
+        registerConditionHandler("has_organ", (context, condition) -> {
+            if (condition.scope() == null || condition.organ() == null) {
+                return false;
+            }
+            ResourceLocation organId = ResourceLocation.tryParse(condition.organ());
+            if (organId == null) {
+                return false;
+            }
+            return switch (condition.scope()) {
+                case "whole_body" -> context.evaluationContext().organCount(organId) > 0;
+                case "body_part" -> {
+                    ResourceLocation bodyPartId = ResourceLocation.tryParse(condition.bodyPart());
+                    yield bodyPartId != null && context.evaluationContext().hasOrganInBodyPart(bodyPartId, organId);
+                }
+                case "exact_position" -> {
+                    ResourceLocation bodyPartId = condition.bodyPart() != null ? ResourceLocation.tryParse(condition.bodyPart()) : context.position().bodyPartId();
+                    Integer slot = condition.slot();
+                    yield bodyPartId != null && slot != null && organId.equals(context.evaluationContext().organAt(bodyPartId, slot));
+                }
+                case "symmetric_position" -> context.evaluationContext().symmetricBodyPart(context.position().bodyPartId())
+                        .map(bodyPartId -> organId.equals(context.evaluationContext().organAt(bodyPartId, context.position().slotIndex())))
+                        .orElse(false);
+                default -> false;
+            };
+        });
+        registerConditionHandler("biome", (context, condition) -> {
+            net.minecraft.core.Holder<Biome> biomeHolder = context.evaluationContext().biome();
+            if (condition.biome() != null) {
+                ResourceLocation biomeId = ResourceLocation.tryParse(condition.biome());
+                if (biomeId == null || !biomeHolder.is(ResourceKey.create(net.minecraft.core.registries.Registries.BIOME, biomeId))) {
+                    return false;
+                }
+            }
+            if (condition.biomeTag() != null) {
+                ResourceLocation biomeTagId = ResourceLocation.tryParse(condition.biomeTag());
+                if (biomeTagId == null || !biomeHolder.is(TagKey.create(net.minecraft.core.registries.Registries.BIOME, biomeTagId))) {
+                    return false;
+                }
+            }
+            return condition.biome() != null || condition.biomeTag() != null;
+        });
+        registerConditionHandler("dimid", (context, condition) -> {
+            if (condition.dimension() == null) {
+                return false;
+            }
+            ResourceLocation dimensionId = context.evaluationContext().entity().level().dimension().location();
+            return condition.dimension().equals(dimensionId.toString());
+        });
+        registerConditionHandler("lightlevel", (context, condition) -> {
+            if (condition.value() == null || condition.operator() == null) {
+                return false;
+            }
+            long lightLevel = context.evaluationContext().entity().level().getMaxLocalRawBrightness(context.evaluationContext().blockPos());
+            return EffectRecalculationService.compareLong(lightLevel, condition.operator(), condition.value());
+        });
+        registerConditionHandler("stepon", (context, condition) -> {
+            BlockState blockState = context.evaluationContext().steppedOnBlock();
+            if (blockState == null) {
+                return false;
+            }
+            if (condition.block() != null) {
+                ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(blockState.getBlock());
+                if (blockId == null || !condition.block().equals(blockId.toString())) {
+                    return false;
+                }
+            }
+            if (condition.blockTag() != null) {
+                ResourceLocation blockTagId = ResourceLocation.tryParse(condition.blockTag());
+                if (blockTagId == null || !blockState.is(TagKey.create(net.minecraft.core.registries.Registries.BLOCK, blockTagId))) {
+                    return false;
+                }
+            }
+            return condition.block() != null || condition.blockTag() != null;
+        });
     }
 
     private static final class GrantItemsExecutor implements PointExecutor {
@@ -174,8 +302,7 @@ public final class OepExtensionApi {
             if (usage.usedPoints() <= 0L) {
                 return;
             }
-            double total = (action.amount() != null ? action.amount() : 0.0D)
-                    + usage.usedPoints() * (action.amountPerPoint() != null ? action.amountPerPoint() : 0.0D);
+            double total = action.amount() != null ? action.amount() : 0.0D;
             if (total > 0.0D) {
                 context.player().heal((float) total);
             }

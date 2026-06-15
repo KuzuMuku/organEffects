@@ -9,12 +9,14 @@ import cn.kuzuanpa.organapi.api.query.OrganQueryService;
 import cn.kuzuanpa.organapi.common.body.BodyPlanResolver;
 import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
 import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
+import cn.kuzuanpa.organeffectprocessor.api.extension.ConditionHandler;
 import cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi;
 import cn.kuzuanpa.organeffectprocessor.api.extension.PointProducer;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectPointMap;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.data.OrganEffectData;
+import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.network.OepNetwork;
 import cn.kuzuanpa.organeffectprocessor.common.skill.SkillManager;
 import cn.kuzuanpa.organeffectprocessor.common.sync.AttributeSyncer;
@@ -24,11 +26,8 @@ import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -77,6 +76,25 @@ public final class EffectRecalculationService {
         }
         Map<String, Long> points = holder.getEffectPoints();
         applyPlayerEffects(player, Map.of(), points);
+    }
+
+    public static long dayTicks() {
+        return DAY_TICKS;
+    }
+
+    public static boolean compareLong(long actual, String operator, Long expected) {
+        if (operator == null || expected == null) {
+            return false;
+        }
+        return switch (operator) {
+            case "eq" -> actual == expected;
+            case "ne" -> actual != expected;
+            case "gt" -> actual > expected;
+            case "gte" -> actual >= expected;
+            case "lt" -> actual < expected;
+            case "lte" -> actual <= expected;
+            default -> false;
+        };
     }
 
     private static void applyPlayerEffects(Player player, Map<String, Long> oldPoints, Map<String, Long> newPoints) {
@@ -135,147 +153,14 @@ public final class EffectRecalculationService {
     }
 
     private static boolean evaluateCondition(EvaluationContext context, OrganPosition pos, EffectDefinition.Condition condition) {
-        return switch (condition.type()) {
-            case "static" -> true;
-            case "slot_index" -> compareLong(pos.slotIndex(), condition.operator(), condition.value());
-            case "distance_to_edge" -> compareLong(context.distanceToEdge(pos, condition.edge()), condition.operator(), condition.value());
-            case "weather" -> matchesWeather(context, condition.weather());
-            case "time" -> matchesTime(context, condition);
-            case "has_organ" -> matchesOrganLink(context, pos, condition);
-            case "biome" -> matchesBiome(context, condition);
-            case "dimid" -> matchesDimension(context, condition.dimension());
-            case "lightlevel" -> matchesLightLevel(context, condition);
-            case "stepon" -> matchesStepOn(context, condition);
-            default -> false;
-        };
-    }
-
-    private static boolean matchesWeather(EvaluationContext context, String weather) {
-        if (weather == null) {
+        ConditionHandler handler = OepExtensionApi.getConditionHandler(condition.type());
+        if (handler == null) {
+            if (context.entity() instanceof Player player) {
+                OepDebug.trace(player, "condition missing type=%s", condition.type());
+            }
             return false;
         }
-        return switch (weather) {
-            case "clear" -> !context.entity().level().isRaining() && !context.entity().level().isThundering();
-            case "rain" -> context.entity().level().isRaining() && !context.entity().level().isThundering();
-            case "thunder" -> context.entity().level().isThundering();
-            default -> false;
-        };
-    }
-
-    private static boolean matchesTime(EvaluationContext context, EffectDefinition.Condition condition) {
-        if (condition.time() != null) {
-            return switch (condition.time()) {
-                case "day" -> context.entity().level().isDay();
-                case "night" -> !context.entity().level().isDay();
-                default -> false;
-            };
-        }
-
-        long timeOfDay = Math.floorMod(context.entity().level().getDayTime(), DAY_TICKS);
-        if (condition.min() != null || condition.max() != null) {
-            long min = condition.min() != null ? condition.min() : 0L;
-            long max = condition.max() != null ? condition.max() : DAY_TICKS - 1L;
-            if (min <= max) {
-                return timeOfDay >= min && timeOfDay <= max;
-            }
-            return timeOfDay >= min || timeOfDay <= max;
-        }
-        return compareLong(timeOfDay, condition.operator(), condition.value());
-    }
-
-    private static boolean matchesOrganLink(EvaluationContext context, OrganPosition pos, EffectDefinition.Condition condition) {
-        if (condition.scope() == null || condition.organ() == null) {
-            return false;
-        }
-        ResourceLocation organId = ResourceLocation.tryParse(condition.organ());
-        if (organId == null) {
-            return false;
-        }
-
-        return switch (condition.scope()) {
-            case "whole_body" -> context.organCount(organId) > 0;
-            case "body_part" -> {
-                ResourceLocation bodyPartId = ResourceLocation.tryParse(condition.bodyPart());
-                yield bodyPartId != null && context.hasOrganInBodyPart(bodyPartId, organId);
-            }
-            case "exact_position" -> {
-                ResourceLocation bodyPartId = condition.bodyPart() != null ? ResourceLocation.tryParse(condition.bodyPart()) : pos.bodyPartId();
-                Integer slot = condition.slot();
-                yield bodyPartId != null && slot != null && organId.equals(context.organAt(bodyPartId, slot));
-            }
-            case "symmetric_position" -> context.symmetricBodyPart(pos.bodyPartId())
-                    .map(bodyPartId -> organId.equals(context.organAt(bodyPartId, pos.slotIndex())))
-                    .orElse(false);
-            default -> false;
-        };
-    }
-
-    private static boolean matchesBiome(EvaluationContext context, EffectDefinition.Condition condition) {
-        Holder<Biome> biomeHolder = context.biome();
-        if (condition.biome() != null) {
-            ResourceLocation biomeId = ResourceLocation.tryParse(condition.biome());
-            if (biomeId == null || !biomeHolder.is(ResourceKey.create(Registries.BIOME, biomeId))) {
-                return false;
-            }
-        }
-        if (condition.biomeTag() != null) {
-            ResourceLocation biomeTagId = ResourceLocation.tryParse(condition.biomeTag());
-            if (biomeTagId == null || !biomeHolder.is(TagKey.create(Registries.BIOME, biomeTagId))) {
-                return false;
-            }
-        }
-        return condition.biome() != null || condition.biomeTag() != null;
-    }
-
-    private static boolean matchesDimension(EvaluationContext context, String dimension) {
-        if (dimension == null) {
-            return false;
-        }
-        ResourceLocation dimensionId = context.entity().level().dimension().location();
-        return dimension.equals(dimensionId.toString());
-    }
-
-    private static boolean matchesLightLevel(EvaluationContext context, EffectDefinition.Condition condition) {
-        if (condition.value() == null || condition.operator() == null) {
-            return false;
-        }
-        long lightLevel = context.entity().level().getMaxLocalRawBrightness(context.blockPos());
-        return compareLong(lightLevel, condition.operator(), condition.value());
-    }
-
-    private static boolean matchesStepOn(EvaluationContext context, EffectDefinition.Condition condition) {
-        BlockState blockState = context.steppedOnBlock();
-        if (blockState == null) {
-            return false;
-        }
-        if (condition.block() != null) {
-            ResourceLocation blockId = net.minecraftforge.registries.ForgeRegistries.BLOCKS.getKey(blockState.getBlock());
-            if (blockId == null || !condition.block().equals(blockId.toString())) {
-                return false;
-            }
-        }
-        if (condition.blockTag() != null) {
-            ResourceLocation blockTagId = ResourceLocation.tryParse(condition.blockTag());
-            if (blockTagId == null || !blockState.is(TagKey.create(net.minecraft.core.registries.Registries.BLOCK, blockTagId))) {
-                return false;
-            }
-        }
-        return condition.block() != null || condition.blockTag() != null;
-    }
-
-    private static boolean compareLong(long actual, String operator, Long expected) {
-        if (operator == null || expected == null) {
-            return false;
-        }
-        return switch (operator) {
-            case "eq" -> actual == expected;
-            case "ne" -> actual != expected;
-            case "gt" -> actual > expected;
-            case "gte" -> actual >= expected;
-            case "lt" -> actual < expected;
-            case "lte" -> actual <= expected;
-            default -> false;
-        };
+        return handler.test(new ConditionHandler.ConditionContext(context, pos), condition);
     }
 
     public record EvaluationContext(

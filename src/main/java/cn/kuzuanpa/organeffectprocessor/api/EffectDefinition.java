@@ -1,5 +1,6 @@
 package cn.kuzuanpa.organeffectprocessor.api;
 
+import com.google.gson.JsonObject;
 import java.util.List;
 
 public record EffectDefinition(
@@ -32,8 +33,12 @@ public record EffectDefinition(
             String biomeTag,
             String dimension,
             String block,
-            String blockTag
+            String blockTag,
+            JsonObject extra
     ) {
+        public Condition {
+            extra = extra == null ? new JsonObject() : extra.deepCopy();
+        }
     }
 
     public record Grant(String type, String id, long amount) {
@@ -50,12 +55,14 @@ public record EffectDefinition(
             boolean foodOnly,
             List<PointMutation> addPoints,
             List<PointMutation> consumePoints,
-            List<BonusAction> actions
+            List<BonusAction> actions,
+            JsonObject extra
     ) {
         public EventRule {
             addPoints = List.copyOf(addPoints);
             consumePoints = List.copyOf(consumePoints);
             actions = List.copyOf(actions);
+            extra = extra == null ? new JsonObject() : extra.deepCopy();
         }
     }
 
@@ -79,13 +86,11 @@ public record EffectDefinition(
     public record BonusAction(
             String type,
             Double amount,
-            Double amountPerPoint,
             String pointType,
             String pointId,
             String source,
             long maxConsume,
             boolean consumePoints,
-            String damageKind,
             String effectId,
             Integer durationTicks,
             Integer amplifier,
@@ -94,12 +99,12 @@ public record EffectDefinition(
             int rolls,
             boolean unique,
             boolean dropIfFull,
-            String pointOperation,
-            Long pointAmount,
-            ChanceConfig chance
+            ChanceConfig chance,
+            JsonObject extra
     ) {
         public BonusAction {
             items = items == null ? List.of() : List.copyOf(items);
+            extra = extra == null ? new JsonObject() : extra.deepCopy();
         }
     }
 

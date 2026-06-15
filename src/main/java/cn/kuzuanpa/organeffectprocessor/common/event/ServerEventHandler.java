@@ -99,7 +99,7 @@ public class ServerEventHandler {
     public void onLivingHurt(LivingHurtEvent event) {
         Entity attackerEntity = event.getSource().getEntity();
         if (attackerEntity instanceof LivingEntity attacker) {
-            event.setAmount(RuntimeEffectService.handleAttack(attacker, event.getEntity(), event.getSource().getDirectEntity(), event.getAmount()));
+            RuntimeEffectService.handleAttack(attacker, event.getEntity(), event.getSource().getDirectEntity(), event.getAmount());
             RuntimeEffectService.handleAttacked(event.getEntity(), attacker, event.getSource().getDirectEntity(), event.getAmount());
         }
         RuntimeEffectService.handleHealthLoss(event.getEntity(), attackerEntity, event.getSource().getDirectEntity(), event.getAmount());

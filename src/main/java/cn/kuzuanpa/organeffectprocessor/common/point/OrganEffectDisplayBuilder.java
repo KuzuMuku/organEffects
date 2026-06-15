@@ -308,23 +308,11 @@ public final class OrganEffectDisplayBuilder {
             case "heal" -> Component.translatable("message.organeffectprocessor.effects.action.heal", valueOf(action.amount()));
             case "grant_items" -> Component.translatable("message.organeffectprocessor.effects.action.grant_items",
                     valueOf(action.rolls()), valueOf(action.items().size()));
-            case "bonus_damage_per_point", "modify_damage" -> describeDamageAction(action);
-            case "mutate_points" -> Component.translatable("message.organeffectprocessor.effects.action.mutate_points",
-                    describePointOperation(action.pointOperation()),
-                    formatPointAmount(action.pointType(), action.pointId(), action.pointAmount() != null ? action.pointAmount() : 0L));
             case "taunt" -> Component.translatable("message.organeffectprocessor.effects.action.taunt",
                     valueOf(action.amount() != null ? action.amount() : 8.0D),
                     translateKey("message.organeffectprocessor.effects.target.", action.target()));
             default -> Component.literal(action.type());
         };
-    }
-
-    private static Component describeDamageAction(EffectDefinition.BonusAction action) {
-        if (action.amountPerPoint() != null && action.pointType() != null && action.pointId() != null) {
-            return Component.translatable("message.organeffectprocessor.effects.action.damage_per_point",
-                    valueOf(action.amountPerPoint()), describePointBinding(action));
-        }
-        return Component.translatable("message.organeffectprocessor.effects.action.damage_flat", valueOf(action.amount()));
     }
 
     private static Component describePointBinding(EffectDefinition.BonusAction action) {

@@ -2,7 +2,7 @@
   "item": "organeffectprocessor:wonder_tendon",
   "valid_parts": ["organapi:left_arm", "organapi:right_arm"],
   "size": 1,
-  "tooltips": ["A focused sample organ that modifies attack damage."],
+  "tooltips": ["A focused sample organ that stores temporary combat charge when attacking."],
   "tags": ["wonder", "sample", "attack"],
   "effects": [
     {
@@ -21,20 +21,16 @@
       "events": [
         {
           "type": "attack",
-          "add_points": [],
-          "consume_points": [],
-          "actions": [
+          "add_points": [
             {
-              "type": "modify_damage",
-              "damage_kind": "melee",
-              "amount": 2.0
-            },
-            {
-              "type": "modify_damage",
-              "damage_kind": "projectile",
-              "amount": 1.0
+              "type": "runtime",
+              "id": "organeffectprocessor:charge",
+              "amount": 1,
+              "duration_ticks": 40
             }
-          ]
+          ],
+          "consume_points": [],
+          "actions": []
         }
       ],
       "executions": []

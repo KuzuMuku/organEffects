@@ -348,22 +348,20 @@
 {
   "type": "attack",
   "source": "self",
-  "add_points": [],
-  "consume_points": [],
-  "actions": [
+  "add_points": [
     {
-      "type": "bonus_damage_per_point",
-      "point_type": "counter",
-      "point_id": "charge",
-      "amount_per_point": 0.5,
-      "source": "self",
-      "max_consume": 999999
+      "type": "runtime",
+      "id": "charge",
+      "amount": 1,
+      "duration_ticks": 40
     }
-  ]
+  ],
+  "consume_points": [],
+  "actions": []
 }
 ```
 
-`bonus_damage_per_point` 会读取/消费点数并在本次攻击中结算额外伤害。
+`attack` 事件应优先只负责写入或消耗点数，再由 `executions` 在后续阶段读取这些点数兑现效果。
 
 ### attacked / health_loss / kill
 
@@ -507,7 +505,7 @@ Executions 在玩家 tick / recompute / runtime event 后运行。它们读取�
 - `wonder_brain_v2`：`use_item -> grant_items`
 - `wonder_heart`：`eat -> apply_mob_effect`
 - `wonder_leg_muscle`：`move -> heal`
-- `wonder_tendon`：`attack -> modify_damage`
+- `wonder_tendon`：`attack -> runtime charge`
 - `wonder_lung`：`slot_index -> skill`
 - `wonder_eye_of_storm`：`weather + time -> use_item -> night_vision`
 - `wonder_biome_core`：`biome` / `biome_tag`
@@ -532,7 +530,9 @@ Executions 在玩家 tick / recompute / runtime event 后运行。它们读取�
 
 - `cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi`
 - `PointProducer`
+- `ConditionHandler`
 - `PointExecutor`
+- `OepRuntimeEvent` + `RuntimeEffectService.fireEvent(...)`
 - `SkillExecutor`
 
 ### 点数获取器
@@ -553,6 +553,17 @@ OepExtensionApi.registerPointProducer(new PointProducer() {
 ```
 
 Producer 只写点，不直接施加效果。source layer 使用 `id()`。
+
+### 自定义条件
+
+```java
+OepExtensionApi.registerConditionHandler("compatmod:charged_dimension", (context, condition) -> {
+    // compat 子模组在这里读取外部状态或 condition.extra()
+    return true;
+});
+```
+
+`ConditionHandler` 适合把外部模组状态、特殊实体能力或不适合塞进内建 schema 的判断留在 Java 侧。
 
 ### 点数执行器
 
@@ -584,7 +595,18 @@ OepExtensionApi.registerPointExecutor(new PointExecutor() {
 }
 ```
 
-主 OEP 不应该 import Create 等可选模组；这些依赖应放在 compat 子模组。
+### 自定义 runtime event 注入
+
+```java
+RuntimeEffectService.fireEvent(
+    player,
+    OepRuntimeEvent.builder("compatmod:reactor_exploded", player)
+        .amount(1.0D)
+        .build()
+);
+```
+
+推荐做法是让 compat/mixin 代码先把外部业务判断做完，再向 OEP 注入一个足够明确的事件类型。OEP 侧 event 仍然应优先只做 `add_points` / `consume_points`。
 
 ---
 
@@ -602,5 +624,5 @@ OepExtensionApi.registerPointExecutor(new PointExecutor() {
 - `stepon` 属于静态 condition，是否生效依赖定期 recompute，不是逐 tick 精确切换
 - `biome_change` 当前通过玩家 tick 里记录 biome key 变化检测
 - `taunt` 是尽量把附近敌对生物目标切到玩家，部分 AI 可能会很快覆盖该目标
-- 伤害修改 action 仍依赖 attack event 即时上下文
-- runtime point 数值是 long；小数语义建议放在 action 参数中表达
+- OEP 当前推荐把 event 只当作点数入口；外部 Java compat 若需要复杂筛选，应先在 compat/mixin 侧完成，再注入明确事件类型
+- runtime point 数值是 long；小数语义建议放在 execution 参数中表达

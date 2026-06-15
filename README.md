@@ -58,7 +58,7 @@ Then rebuild OEP.
 Source model and execution order:
 
 - `source: "self"` resolves to an organ-instance-local source tag, so event-earned non-runtime points stay associated with the specific installed organ instance.
-- Executions and point-based event actions check `runtime:*` points first, then fall back to pooled source-backed points with the same key.
+- Executions check `runtime:*` points first, then fall back to pooled source-backed points with the same key.
 - Static recompute-owned instance sources are rebuilt during recompute; event-earned `organ-instance:.../event/...` sources are expected to persist until consumed or explicitly cleared.
 - `effect_point_viewer` is both a display tool and a recompute trigger, so it remains useful for debugging but can still hide stale recompute bugs if you only test through the item.
 
@@ -70,14 +70,18 @@ Key classes:
 
 - `OepExtensionApi`
 - `PointProducer`
+- `ConditionHandler`
 - `PointExecutor`
+- `OepRuntimeEvent`
 - `SkillExecutor`
 
 Typical compat pattern:
 
 ```java
 OepExtensionApi.registerPointProducer(new CreateStressProducer());
+OepExtensionApi.registerConditionHandler("compatmod:charged_dimension", new CreateChargedDimensionCondition());
 OepExtensionApi.registerPointExecutor(new CreateChargeBurstExecutor());
+RuntimeEffectService.fireEvent(player, OepRuntimeEvent.builder("compatmod:reactor_exploded", player).build());
 SkillManager.registerSkill(...);
 SkillManager.registerSkillExecutor("compatmod:rotational_overdrive", (player, level) -> {
     // external-mod-aware behavior lives in the compat submod
@@ -97,7 +101,7 @@ Representative focused samples now include:
 - `wonder_brain_v2` - `use_item -> grant_items`
 - `wonder_heart` - `eat -> apply_mob_effect`
 - `wonder_leg_muscle` - `move -> heal`
-- `wonder_tendon` - `attack -> modify_damage`
+- `wonder_tendon` - `attack -> runtime charge`
 - `wonder_lung` - `slot_index -> skill`
 - `wonder_eye_of_storm` - `weather + time -> use_item -> night_vision`
 - `wonder_biome_core` - `biome` / `biome_tag`

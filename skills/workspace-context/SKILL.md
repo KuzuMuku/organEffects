@@ -84,12 +84,13 @@ Recommended compat pattern:
 
 - main OEP stays dependency-light
 - compat submod depends on OEP + external mod
-- compat submod registers point producers / point executors / skill executors in common setup
+- compat submod registers point producers / condition handlers / point executors in common setup
+- compat submod injects custom runtime events through `RuntimeEffectService.fireEvent(...)` when external hooks or mixins observe relevant behavior
 
 ## Gotchas
 
 - if an organ item is missing `organapi:organs`, it will not be placeable
 - the point viewer forces recompute, so it can hide stale-event bugs if you only test with it
-- `source: "self"` resolves to an organ-instance-local source; executions and point-based event actions read `runtime:*` first, then pooled source-backed points
-- current damage-modifying event actions still run in event context; non-damage effects should go through point-pool bridging
+- `source: "self"` resolves to an organ-instance-local source; executions read `runtime:*` first, then pooled source-backed points
+- runtime events are point-ingress only; visible effects should usually be implemented through points + `RuntimePointExecutor`, not immediate event-side actions
 - README and docs are intended for humans; the skills are the fast path for agents and repeat contributors

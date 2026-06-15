@@ -5,7 +5,7 @@ description: Quickly recover the Organ Effect Processor workspace context: organ
 
 # Organ Effect Processor workspace onboarding
 
-Use this when a new agent needs to quickly understand this Forge 1.20.1 addon mod before editing. Stay inside this project directory and the paired `../organAPI` dependency directory; nearby sibling directories are unrelated.
+Use this when a new agent needs to quickly understand this Forge 1.20.1 addon mod before editing. Stay inside this project directory and the `../organ*` directories; other directories are unrelated.
 
 ## First commands
 
@@ -84,10 +84,6 @@ Critical OrganAPI integration points:
 - OEP recalculates after OrganAPI posts `OrganStateCommittedEvent` when organ menus close
 - OEP queries installed organs via `OrganQueryService.getInstalledOrganPositions(entity)`
 
-Important consequence:
-
-- if an OEP organ item is missing the `organapi:organs` item tag, it will not be placeable into body parts even if the JSON exists
-
 ## Effect JSON model
 
 OEP reads `effects[]` blocks embedded inside organ JSON files under `organapi/organs`.
@@ -99,7 +95,7 @@ Current internal model:
 - `events`: runtime triggers that mutate source/runtime points, including `move`, `attack`, `attacked`, `health_loss`, `kill`, `biome_change`, `dimension_change`, `eat`, `mine`, `use_item`
 - `executions`: point-driven effects that read or consume points, including built-ins like `apply_mob_effect`, `heal`, `grant_items`, and `taunt`
 
-Events and executions should stay decoupled through the point pool whenever possible. Damage-modifying event actions are the main current exception because they need attack-context timing.
+Events and executions should stay decoupled through the point pool whenever possible. Treat events as point mutation ingress; visible behavior should generally happen in `executions` or Java extension code that writes points.
 
 Typical example:
 
@@ -156,7 +152,7 @@ The point viewer also forces a recompute on use so chat output reflects current 
 Important source-model note:
 
 - `source: "self"` resolves to an organ-instance-local source tag
-- executions and event actions check `runtime:*` points first, then pooled source-backed points
+- event writes and executions check `runtime:*` points first, then pooled source-backed points
 - static recompute-owned instance sources are rebuilt during recompute, but event-earned `organ-instance:.../event/...` sources should persist until consumed/cleared
 
 ## Capability/state
