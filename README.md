@@ -113,11 +113,7 @@ Representative focused samples now include:
 ## Developer docs
 
 - Effect JSON guide: `docs/organ-effect-json-guide.md`
-- Repo/agent guide: `CLAUDE.md`
-- Claude skills:
-  - `oep-onboarding`
-  - `workspace-context`
-  - `quick-organ-development`
+- Skills: `skills`
 
 ## Quick organ checklist
 
