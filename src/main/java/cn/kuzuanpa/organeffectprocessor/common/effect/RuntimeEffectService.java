@@ -4,6 +4,7 @@ import cn.kuzuanpa.organapi.api.query.OrganPosition;
 import cn.kuzuanpa.organapi.api.query.OrganQueryService;
 import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
 import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
+import cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi;
 import cn.kuzuanpa.organeffectprocessor.api.extension.OepRuntimeEvent;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
@@ -245,7 +246,7 @@ public final class RuntimeEffectService {
         if (eventRule.blockTag() != null && (event.blockState() == null || !event.blockState().is(tag(BlockTags::create, eventRule.blockTag())))) {
             return false;
         }
-        return true;
+        return OepExtensionApi.matchesExtraEventFilters(eventRule, event);
     }
 
     private static long countSuccessfulApplications(Entity entity, EffectDefinition.ChanceConfig chance, long attempts) {

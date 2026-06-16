@@ -4,6 +4,7 @@ import cn.kuzuanpa.organapi.api.organ.OrganDefinition;
 import cn.kuzuanpa.organapi.api.query.OrganPosition;
 import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
 import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
+import cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi;
 import cn.kuzuanpa.organeffectprocessor.common.data.OrganEffectData;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,8 +21,8 @@ import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.ForgeRegistries;
 
@@ -219,6 +220,10 @@ public final class OrganEffectDisplayBuilder {
     }
 
     private static Component describeCondition(EffectDefinition.Condition condition) {
+        Component custom = OepExtensionApi.renderCondition(condition);
+        if (custom != null) {
+            return custom;
+        }
         return switch (condition.type()) {
             case "slot_index" -> Component.translatable("message.organeffectprocessor.effects.condition.slot_index",
                     formatOperator(condition.operator()), valueOf(condition.value()));
@@ -275,6 +280,10 @@ public final class OrganEffectDisplayBuilder {
     }
 
     private static Component describeEvent(EffectDefinition.EventRule event) {
+        Component custom = OepExtensionApi.renderEvent(event);
+        if (custom != null) {
+            return custom;
+        }
         MutableComponent eventName = translateKey("message.organeffectprocessor.effects.event.", event.type());
         List<Component> filters = new ArrayList<>();
         if (event.foodOnly()) {
@@ -302,6 +311,10 @@ public final class OrganEffectDisplayBuilder {
     }
 
     private static Component describeAction(EffectDefinition.BonusAction action) {
+        Component custom = OepExtensionApi.renderAction(action);
+        if (custom != null) {
+            return custom;
+        }
         return switch (action.type()) {
             case "apply_mob_effect" -> Component.translatable("message.organeffectprocessor.effects.action.apply_mob_effect",
                     describeMobEffect(action.effectId()), valueOf(action.durationTicks()), valueOf(action.amplifier()));
@@ -429,10 +442,6 @@ public final class OrganEffectDisplayBuilder {
 
     private static Component formatOperator(String operator) {
         return translateKey("message.organeffectprocessor.effects.operator.", operator);
-    }
-
-    private static Component describePointOperation(String operation) {
-        return translateKey("message.organeffectprocessor.effects.point_operation.", operation);
     }
 
     private static Component describeItemId(String rawId) {

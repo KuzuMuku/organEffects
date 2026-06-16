@@ -1,5 +1,6 @@
 package cn.kuzuanpa.organeffectprocessor.api.extension;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -24,6 +25,30 @@ public record OepRuntimeEvent(
 
     public boolean isProjectileAttack() {
         return directEntity != null && directEntity != entity;
+    }
+
+    public JsonElement extraValue(String key) {
+        return extra.get(key);
+    }
+
+    public String extraString(String key) {
+        JsonElement value = extraValue(key);
+        return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+    }
+
+    public Double extraDouble(String key) {
+        JsonElement value = extraValue(key);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
+    }
+
+    public Long extraLong(String key) {
+        JsonElement value = extraValue(key);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
+    }
+
+    public Boolean extraBoolean(String key) {
+        JsonElement value = extraValue(key);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
     }
 
     public static Builder builder(String type, LivingEntity entity) {

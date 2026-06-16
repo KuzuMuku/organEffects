@@ -1,5 +1,6 @@
 package cn.kuzuanpa.organeffectprocessor.api;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.List;
 
@@ -39,6 +40,30 @@ public record EffectDefinition(
         public Condition {
             extra = extra == null ? new JsonObject() : extra.deepCopy();
         }
+
+        public JsonElement extraValue(String key) {
+            return extra.get(key);
+        }
+
+        public String extraString(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+        }
+
+        public Long extraLong(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
+        }
+
+        public Double extraDouble(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
+        }
+
+        public Boolean extraBoolean(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
+        }
     }
 
     public record Grant(String type, String id, long amount) {
@@ -63,6 +88,30 @@ public record EffectDefinition(
             consumePoints = List.copyOf(consumePoints);
             actions = List.copyOf(actions);
             extra = extra == null ? new JsonObject() : extra.deepCopy();
+        }
+
+        public JsonElement extraValue(String key) {
+            return extra.get(key);
+        }
+
+        public String extraString(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+        }
+
+        public Long extraLong(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
+        }
+
+        public Double extraDouble(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
+        }
+
+        public Boolean extraBoolean(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
         }
     }
 
@@ -105,6 +154,30 @@ public record EffectDefinition(
         public BonusAction {
             items = items == null ? List.of() : List.copyOf(items);
             extra = extra == null ? new JsonObject() : extra.deepCopy();
+        }
+
+        public JsonElement extraValue(String key) {
+            return extra.get(key);
+        }
+
+        public String extraString(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+        }
+
+        public Long extraLong(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
+        }
+
+        public Double extraDouble(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
+        }
+
+        public Boolean extraBoolean(String key) {
+            JsonElement value = extraValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
         }
     }
 

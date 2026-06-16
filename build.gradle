@@ -71,6 +71,32 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
+tasks.register('devJar', Jar) {
+    archiveClassifier = 'dev'
+    from sourceSets.main.output
+    manifest.from(jar.manifest)
+}
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = 'cn.kuzuanpa'
+            // Add any other artifacts here that you would like to publish!
+            artifact(jar) {
+                builtBy build
+            }
+            artifact(devJar){
+                builtBy devJar
+            }
+        }
+    }
+
+    // This block selects the repositories you want to publish to.
+    repositories {
+        mavenLocal()
+        // Add the repositories you want to publish to here.
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }

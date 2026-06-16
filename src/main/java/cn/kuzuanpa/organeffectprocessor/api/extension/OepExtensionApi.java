@@ -4,11 +4,13 @@ import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.effect.EffectRecalculationService;
+import com.google.gson.JsonElement;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
@@ -30,6 +32,10 @@ public final class OepExtensionApi {
     private static final Map<String, PointProducer> POINT_PRODUCERS = new LinkedHashMap<>();
     private static final Map<String, PointExecutor> POINT_EXECUTORS = new LinkedHashMap<>();
     private static final Map<String, ConditionHandler> CONDITION_HANDLERS = new LinkedHashMap<>();
+    private static final Map<String, ConditionDisplayRenderer> CONDITION_DISPLAYS = new LinkedHashMap<>();
+    private static final Map<String, EventDisplayRenderer> EVENT_DISPLAYS = new LinkedHashMap<>();
+    private static final Map<String, ActionDisplayRenderer> ACTION_DISPLAYS = new LinkedHashMap<>();
+    private static final Map<String, EventFilterHandler> EVENT_FILTER_HANDLERS = new LinkedHashMap<>();
 
     private OepExtensionApi() {
     }
@@ -46,6 +52,22 @@ public final class OepExtensionApi {
         CONDITION_HANDLERS.put(type, handler);
     }
 
+    public static void registerConditionDisplay(String type, ConditionDisplayRenderer renderer) {
+        CONDITION_DISPLAYS.put(type, renderer);
+    }
+
+    public static void registerEventDisplay(String type, EventDisplayRenderer renderer) {
+        EVENT_DISPLAYS.put(type, renderer);
+    }
+
+    public static void registerActionDisplay(String type, ActionDisplayRenderer renderer) {
+        ACTION_DISPLAYS.put(type, renderer);
+    }
+
+    public static void registerEventFilter(String key, EventFilterHandler handler) {
+        EVENT_FILTER_HANDLERS.put(key, handler);
+    }
+
     public static Collection<PointProducer> getPointProducers() {
         return List.copyOf(POINT_PRODUCERS.values());
     }
@@ -58,8 +80,37 @@ public final class OepExtensionApi {
         return CONDITION_HANDLERS.get(type);
     }
 
+    public static Component renderCondition(EffectDefinition.Condition condition) {
+        ConditionDisplayRenderer renderer = CONDITION_DISPLAYS.get(condition.type());
+        return renderer != null ? renderer.render(condition) : null;
+    }
+
+    public static Component renderEvent(EffectDefinition.EventRule event) {
+        EventDisplayRenderer renderer = EVENT_DISPLAYS.get(event.type());
+        return renderer != null ? renderer.render(event) : null;
+    }
+
+    public static Component renderAction(EffectDefinition.BonusAction action) {
+        ActionDisplayRenderer renderer = ACTION_DISPLAYS.get(action.type());
+        return renderer != null ? renderer.render(action) : null;
+    }
+
+    public static boolean matchesExtraEventFilters(EffectDefinition.EventRule eventRule, OepRuntimeEvent event) {
+        for (Map.Entry<String, JsonElement> entry : eventRule.extra().entrySet()) {
+            EventFilterHandler handler = EVENT_FILTER_HANDLERS.get(entry.getKey());
+            if (handler == null) {
+                continue;
+            }
+            if (!handler.matches(eventRule, event, entry.getKey(), entry.getValue())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static void registerBuiltins() {
         registerBuiltinConditions();
+        registerBuiltinDisplays();
         registerPointExecutor(new GrantItemsExecutor());
         registerPointExecutor(new ApplyMobEffectExecutor());
         registerPointExecutor(new HealExecutor());
@@ -177,6 +228,10 @@ public final class OepExtensionApi {
             }
             return condition.block() != null || condition.blockTag() != null;
         });
+    }
+
+    private static void registerBuiltinDisplays() {
+        registerEventFilter("food_only", (eventRule, event, key, value) -> !value.getAsBoolean() || (!event.itemStack().isEmpty() && event.itemStack().isEdible()));
     }
 
     private static final class GrantItemsExecutor implements PointExecutor {
