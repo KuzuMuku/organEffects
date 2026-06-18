@@ -33,7 +33,11 @@
           "point_type": "runtime",
           "point_id": "brain_reward_token",
           "amount": 8.0,
+          "duration_ticks": 60,
           "target": "hostile",
+          "config": {
+            "refresh_ticks": 10
+          },
           "consume_points": true,
           "max_consume": 1
         }

@@ -35,13 +35,13 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
     private static final Gson GSON = new GsonBuilder().create();
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Set<String> CONDITION_KEYS = Set.of(
-            "type", "op", "value", "min", "max", "edge", "mode", "scope", "body_part", "slot", "organ", "biome_tag", "tag", "block", "block_tag"
+            "type", "config", "op", "value", "min", "max", "edge", "mode", "scope", "body_part", "slot", "organ", "biome_tag", "tag", "block", "block_tag"
     );
     private static final Set<String> EVENT_RULE_KEYS = Set.of(
-            "type", "distance", "source", "item", "item_tag", "block", "block_tag", "food_only", "add_points", "consume_points", "actions"
+            "type", "config", "distance", "source", "item", "item_tag", "block", "block_tag", "food_only", "add_points", "consume_points", "actions"
     );
     private static final Set<String> BONUS_ACTION_KEYS = Set.of(
-            "type", "amount", "point_type", "point_id", "id", "attribute", "skill_name", "key", "source", "max_consume",
+            "type", "config", "amount", "point_type", "point_id", "id", "attribute", "skill_name", "key", "source", "max_consume",
             "consume_points", "effect", "duration_ticks", "amplifier", "target", "items", "rolls", "unique", "drop_if_full",
             "chance"
     );
@@ -144,12 +144,14 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
 
     private static EffectDefinition.Condition readConditionObject(JsonObject conditionObj, ResourceLocation fileId, int effectIndex, int conditionIndex) {
         String type = GsonHelper.getAsString(conditionObj, "type");
+        JsonObject config = readConfigObject(conditionObj);
         JsonObject extra = collectExtra(conditionObj, CONDITION_KEYS);
         try {
             return switch (type) {
-                case "static" -> new EffectDefinition.Condition("static", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, extra);
+                case "static" -> new EffectDefinition.Condition("static", config, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, extra);
                 case "slot_index" -> new EffectDefinition.Condition(
                         "slot_index",
+                        config,
                         readOperator(conditionObj),
                         GsonHelper.getAsLong(conditionObj, "value"),
                         null,
@@ -170,6 +172,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "distance_to_edge" -> new EffectDefinition.Condition(
                         "distance_to_edge",
+                        config,
                         readOperator(conditionObj),
                         GsonHelper.getAsLong(conditionObj, "value"),
                         null,
@@ -190,6 +193,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "weather" -> new EffectDefinition.Condition(
                         "weather",
+                        config,
                         null,
                         null,
                         null,
@@ -210,6 +214,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "time" -> new EffectDefinition.Condition(
                         "time",
+                        config,
                         conditionObj.has("op") ? GsonHelper.getAsString(conditionObj, "op") : null,
                         conditionObj.has("value") ? GsonHelper.getAsLong(conditionObj, "value") : null,
                         conditionObj.has("min") ? GsonHelper.getAsLong(conditionObj, "min") : null,
@@ -230,6 +235,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "has_organ" -> new EffectDefinition.Condition(
                         "has_organ",
+                        config,
                         null,
                         null,
                         null,
@@ -250,6 +256,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "biome" -> new EffectDefinition.Condition(
                         "biome",
+                        config,
                         null,
                         null,
                         null,
@@ -270,6 +277,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "dimid" -> new EffectDefinition.Condition(
                         "dimid",
+                        config,
                         null,
                         null,
                         null,
@@ -290,6 +298,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "lightlevel" -> new EffectDefinition.Condition(
                         "lightlevel",
+                        config,
                         readOperator(conditionObj),
                         GsonHelper.getAsLong(conditionObj, "value"),
                         null,
@@ -310,6 +319,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 );
                 case "stepon" -> new EffectDefinition.Condition(
                         "stepon",
+                        config,
                         null,
                         null,
                         null,
@@ -328,11 +338,18 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                         GsonHelper.getAsString(conditionObj, "block_tag", null),
                         extra
                 );
-                default -> new EffectDefinition.Condition(type, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, extra);
+                default -> new EffectDefinition.Condition(type, config, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, extra);
             };
         } catch (Exception e) {
             throw new IllegalArgumentException("Condition " + conditionIndex + " of effect " + effectIndex + " in " + fileId + " is invalid: " + e.getMessage(), e);
         }
+    }
+
+    private static JsonObject readConfigObject(JsonObject source) {
+        if (!source.has("config") || !source.get("config").isJsonObject()) {
+            return new JsonObject();
+        }
+        return GsonHelper.getAsJsonObject(source, "config");
     }
 
     private static String readBiomeTag(JsonObject conditionObj, String defaultNamespace) {
@@ -391,6 +408,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
 
     private static EffectDefinition.EventRule readEventRule(JsonObject eventObj, String defaultNamespace) {
         String type = normalizeEventType(GsonHelper.getAsString(eventObj, "type"));
+        JsonObject config = readConfigObject(eventObj);
         Long distance = eventObj.has("distance") ? GsonHelper.getAsLong(eventObj, "distance") : null;
         String source = GsonHelper.getAsString(eventObj, "source", null);
         String item = eventObj.has("item") ? normalizeId(GsonHelper.getAsString(eventObj, "item"), defaultNamespace, false) : null;
@@ -402,7 +420,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         List<EffectDefinition.PointMutation> consumePoints = readPointMutations(eventObj, "consume_points", defaultNamespace);
         List<EffectDefinition.BonusAction> actions = readBonusActions(eventObj, defaultNamespace);
         JsonObject extra = collectExtra(eventObj, EVENT_RULE_KEYS);
-        return new EffectDefinition.EventRule(type, distance, source, item, itemTag, block, blockTag, foodOnly, addPoints, consumePoints, actions, extra);
+        return new EffectDefinition.EventRule(type, config, distance, source, item, itemTag, block, blockTag, foodOnly, addPoints, consumePoints, actions, extra);
     }
 
     private static String normalizeEventType(String rawType) {
@@ -484,6 +502,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
     private static EffectDefinition.BonusAction readBonusAction(JsonObject actionObj, String defaultNamespace) {
         String type = GsonHelper.getAsString(actionObj, "type");
         Double amount = actionObj.has("amount") ? GsonHelper.getAsDouble(actionObj, "amount") : null;
+        JsonObject config = readConfigObject(actionObj);
         String pointType = GsonHelper.getAsString(actionObj, "point_type", "counter");
         String pointId = actionObj.has("point_id") || actionObj.has("id") || actionObj.has("attribute") || actionObj.has("skill_name") || actionObj.has("key")
                 ? readPointId(actionObj, pointType, defaultNamespace, "point_id")
@@ -504,6 +523,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         return new EffectDefinition.BonusAction(
                 type,
                 amount,
+                config,
                 pointId != null ? pointType : null,
                 pointId,
                 source,

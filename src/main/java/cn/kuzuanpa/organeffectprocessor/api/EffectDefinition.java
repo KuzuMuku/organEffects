@@ -19,6 +19,7 @@ public record EffectDefinition(
 
     public record Condition(
             String type,
+            JsonObject config,
             String operator,
             Long value,
             Long min,
@@ -38,7 +39,32 @@ public record EffectDefinition(
             JsonObject extra
     ) {
         public Condition {
+            config = config == null ? new JsonObject() : config.deepCopy();
             extra = extra == null ? new JsonObject() : extra.deepCopy();
+        }
+
+        public JsonElement configValue(String key) {
+            return config.get(key);
+        }
+
+        public String configString(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+        }
+
+        public Long configLong(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
+        }
+
+        public Double configDouble(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
+        }
+
+        public Boolean configBoolean(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
         }
 
         public JsonElement extraValue(String key) {
@@ -71,6 +97,7 @@ public record EffectDefinition(
 
     public record EventRule(
             String type,
+            JsonObject config,
             Long distance,
             String source,
             String item,
@@ -84,10 +111,35 @@ public record EffectDefinition(
             JsonObject extra
     ) {
         public EventRule {
+            config = config == null ? new JsonObject() : config.deepCopy();
             addPoints = List.copyOf(addPoints);
             consumePoints = List.copyOf(consumePoints);
             actions = List.copyOf(actions);
             extra = extra == null ? new JsonObject() : extra.deepCopy();
+        }
+
+        public JsonElement configValue(String key) {
+            return config.get(key);
+        }
+
+        public String configString(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+        }
+
+        public Long configLong(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
+        }
+
+        public Double configDouble(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
+        }
+
+        public Boolean configBoolean(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
         }
 
         public JsonElement extraValue(String key) {
@@ -135,6 +187,7 @@ public record EffectDefinition(
     public record BonusAction(
             String type,
             Double amount,
+            JsonObject config,
             String pointType,
             String pointId,
             String source,
@@ -152,8 +205,33 @@ public record EffectDefinition(
             JsonObject extra
     ) {
         public BonusAction {
+            config = config == null ? new JsonObject() : config.deepCopy();
             items = items == null ? List.of() : List.copyOf(items);
             extra = extra == null ? new JsonObject() : extra.deepCopy();
+        }
+
+        public JsonElement configValue(String key) {
+            return config.get(key);
+        }
+
+        public String configString(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+        }
+
+        public Long configLong(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
+        }
+
+        public Double configDouble(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
+        }
+
+        public Boolean configBoolean(String key) {
+            JsonElement value = configValue(key);
+            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
         }
 
         public JsonElement extraValue(String key) {

@@ -1,5 +1,6 @@
 package cn.kuzuanpa.organeffectprocessor.common.effect;
 
+import com.google.gson.JsonObject;
 import cn.kuzuanpa.organapi.api.query.OrganPosition;
 import cn.kuzuanpa.organapi.api.query.OrganQueryService;
 import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
@@ -22,15 +23,22 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySelector;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public final class RuntimeEffectService {
     private static final Map<UUID, Double> MOVE_REMAINDERS = new HashMap<>();
+    private static final Map<UUID, TauntState> TAUNT_STATES = new HashMap<>();
 
     private RuntimeEffectService() {
     }
@@ -96,8 +104,212 @@ public final class RuntimeEffectService {
                 .build());
     }
 
+    public static void handleJump(LivingEntity entity) {
+        fireEvent(entity, OepRuntimeEvent.builder("jump", entity).build());
+    }
+
+    public static void handleLand(LivingEntity entity) {
+        fireEvent(entity, OepRuntimeEvent.builder("land", entity).build());
+    }
+
+    public static void handleSprintStart(Player player) {
+        fireEvent(player, OepRuntimeEvent.builder("sprint_start", player).build());
+    }
+
+    public static void handleSprintStop(Player player) {
+        fireEvent(player, OepRuntimeEvent.builder("sprint_stop", player).build());
+    }
+
+    public static void handleSneakStart(Player player) {
+        fireEvent(player, OepRuntimeEvent.builder("sneak_start", player).build());
+    }
+
+    public static void handleSneakStop(Player player) {
+        fireEvent(player, OepRuntimeEvent.builder("sneak_stop", player).build());
+    }
+
+    public static void handleSwimStart(LivingEntity entity) {
+        fireEvent(entity, OepRuntimeEvent.builder("swim_start", entity).build());
+    }
+
+    public static void handleSwimStop(LivingEntity entity) {
+        fireEvent(entity, OepRuntimeEvent.builder("swim_stop", entity).build());
+    }
+
+    public static void handleEnterWater(LivingEntity entity) {
+        fireEvent(entity, OepRuntimeEvent.builder("enter_water", entity).build());
+    }
+
+    public static void handleLeaveWater(LivingEntity entity) {
+        fireEvent(entity, OepRuntimeEvent.builder("leave_water", entity).build());
+    }
+
+    public static void handleTakeDamage(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float damageAmount) {
+        fireEvent(entity, OepRuntimeEvent.builder("take_damage", entity)
+                .amount(damageAmount)
+                .extra(buildDamageExtra(source))
+                .build());
+    }
+
+    public static void handleDealDamage(LivingEntity attacker, LivingEntity target, net.minecraft.world.damagesource.DamageSource source, float damageAmount) {
+        fireEvent(attacker, OepRuntimeEvent.builder("deal_damage", attacker)
+                .target(target)
+                .amount(damageAmount)
+                .extra(buildDamageExtra(source))
+                .build());
+    }
+
+    public static void handleProjectileHit(LivingEntity shooter, Entity projectile, Entity hitEntity) {
+        fireEvent(shooter, OepRuntimeEvent.builder("projectile_hit", shooter)
+                .directEntity(projectile)
+                .target(hitEntity instanceof LivingEntity living ? living : null)
+                .build());
+    }
+
+    public static void handleBlockPlace(Player player, BlockState state, net.minecraft.core.BlockPos pos) {
+        fireEvent(player, OepRuntimeEvent.builder("block_place", player)
+                .blockState(state)
+                .extra(new JsonObject())
+                .build());
+    }
+
+    public static void handleItemCraft(Player player, ItemStack stack) {
+        fireEvent(player, OepRuntimeEvent.builder("item_craft", player).itemStack(stack).build());
+    }
+
+    public static void handleItemSmelt(Player player, ItemStack stack) {
+        fireEvent(player, OepRuntimeEvent.builder("item_smelt", player).itemStack(stack).build());
+    }
+
+    public static void handleItemRepair(Player player, ItemStack stack) {
+        fireEvent(player, OepRuntimeEvent.builder("item_repair", player).itemStack(stack).build());
+    }
+
+    public static void handleItemEnchant(Player player, ItemStack stack) {
+        fireEvent(player, OepRuntimeEvent.builder("item_enchant", player).itemStack(stack).build());
+    }
+
+    public static void handleFishCatch(Player player, ItemStack stack) {
+        fireEvent(player, OepRuntimeEvent.builder("fish_catch", player).itemStack(stack).build());
+    }
+
+    public static void handleSleep(Player player) {
+        fireEvent(player, OepRuntimeEvent.builder("sleep", player).build());
+    }
+
+    public static void handleRespawn(Player player) {
+        fireEvent(player, OepRuntimeEvent.builder("respawn", player).build());
+    }
+
+    public static void handleConsumeItem(LivingEntity entity, ItemStack stack) {
+        fireEvent(entity, OepRuntimeEvent.builder("consume_item", entity).itemStack(stack).build());
+    }
+
+    public static void handleEquipItem(LivingEntity entity, ItemStack stack, EquipmentSlot slot) {
+        JsonObject extra = new JsonObject();
+        extra.addProperty("slot", slot.getName());
+        fireEvent(entity, OepRuntimeEvent.builder("equip_item", entity).itemStack(stack).extra(extra).build());
+    }
+
+    public static void handleUnequipItem(LivingEntity entity, ItemStack stack, EquipmentSlot slot) {
+        JsonObject extra = new JsonObject();
+        extra.addProperty("slot", slot.getName());
+        fireEvent(entity, OepRuntimeEvent.builder("unequip_item", entity).itemStack(stack).extra(extra).build());
+    }
+
+    public static void handleCriticalHit(Player player, LivingEntity target, float damage) {
+        fireEvent(player, OepRuntimeEvent.builder("critical_hit", player).target(target).amount(damage).build());
+    }
+
+    public static void handleShieldBlock(LivingEntity entity, Entity sourceEntity, float damage) {
+        LivingEntity attacker = sourceEntity instanceof LivingEntity living ? living : null;
+        fireEvent(entity, OepRuntimeEvent.builder("shield_block", entity).target(attacker).amount(damage).build());
+        fireEvent(entity, OepRuntimeEvent.builder("parry", entity).target(attacker).amount(damage).build());
+    }
+
+    public static void registerTaunt(Player player, double radius, long durationTicks, long refreshTicks, String target) {
+        if (!shouldApplyTaunt(target)) {
+            return;
+        }
+        long now = player.level().getGameTime();
+        long expiresAtTick = now + Math.max(1L, durationTicks);
+        long effectiveRefreshTicks = Math.max(1L, refreshTicks);
+        String normalizedTarget = normalizeTauntTarget(target);
+
+        TauntState state = TAUNT_STATES.get(player.getUUID());
+        if (state == null) {
+            TAUNT_STATES.put(player.getUUID(), new TauntState(expiresAtTick, now + effectiveRefreshTicks, radius, effectiveRefreshTicks, normalizedTarget));
+        } else {
+            state.expiresAtTick = Math.max(state.expiresAtTick, expiresAtTick);
+            state.nextRefreshTick = now + effectiveRefreshTicks;
+            state.radius = Math.max(state.radius, radius);
+            state.refreshTicks = effectiveRefreshTicks;
+            state.target = normalizedTarget;
+        }
+        applyTaunt(player, radius, normalizedTarget);
+    }
+
+    public static void tick(Player player) {
+        TauntState state = TAUNT_STATES.get(player.getUUID());
+        if (state == null) {
+            return;
+        }
+        long now = player.level().getGameTime();
+        if (now >= state.expiresAtTick) {
+            TAUNT_STATES.remove(player.getUUID());
+            return;
+        }
+        if (now < state.nextRefreshTick) {
+            return;
+        }
+        applyTaunt(player, state.radius, state.target);
+        state.nextRefreshTick = now + state.refreshTicks;
+    }
+
+    public static void clearTransientState(Player player) {
+        TAUNT_STATES.remove(player.getUUID());
+    }
+
     public static void fireEvent(LivingEntity entity, OepRuntimeEvent event) {
         handleEvent(entity, event);
+    }
+
+    private static void applyTaunt(Player player, double radius, String target) {
+        if (!shouldApplyTaunt(target)) {
+            return;
+        }
+        AABB area = player.getBoundingBox().inflate(radius);
+        List<Mob> mobs = player.level().getEntitiesOfClass(Mob.class, area, mob -> mob instanceof Enemy
+                && mob.isAlive()
+                && EntitySelector.NO_SPECTATORS.test(mob)
+                && mob.canAttack(player));
+        for (Mob mob : mobs) {
+            if (!mob.getSensing().hasLineOfSight(player) && !TargetingConditions.DEFAULT.test(mob, player)) {
+                continue;
+            }
+            mob.setTarget(player);
+            mob.setLastHurtByMob(player);
+        }
+    }
+
+    private static boolean shouldApplyTaunt(String target) {
+        return target == null || target.isBlank() || "hostile".equals(target);
+    }
+
+    private static String normalizeTauntTarget(String target) {
+        return target == null || target.isBlank() ? "hostile" : target;
+    }
+
+    private static JsonObject buildDamageExtra(net.minecraft.world.damagesource.DamageSource source) {
+        JsonObject extra = new JsonObject();
+        if (source == null) {
+            return extra;
+        }
+        try {
+            extra.addProperty("damage_type", source.getMsgId());
+        } catch (Exception ignored) {
+        }
+        return extra;
     }
 
     private static MoveResult handleMoveEvent(Player player, double totalDistance) {
@@ -330,6 +542,22 @@ public final class RuntimeEffectService {
     }
 
     private record MoveResult(double remainder) {
+    }
+
+    private static final class TauntState {
+        private long expiresAtTick;
+        private long nextRefreshTick;
+        private double radius;
+        private long refreshTicks;
+        private String target;
+
+        private TauntState(long expiresAtTick, long nextRefreshTick, double radius, long refreshTicks, String target) {
+            this.expiresAtTick = expiresAtTick;
+            this.nextRefreshTick = nextRefreshTick;
+            this.radius = radius;
+            this.refreshTicks = refreshTicks;
+            this.target = target;
+        }
     }
 
     @FunctionalInterface

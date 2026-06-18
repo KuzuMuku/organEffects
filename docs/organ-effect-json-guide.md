@@ -1,36 +1,98 @@
 # Organ Effect JSON 开发文档
 
-本文说明 `organEffects` 当前支持的器官效果 JSON 写法。核心设计是：**触发器和执行器通过玩家/实体身上的点数池解耦**。
+本文说明 OEP 当前支持的器官效果 JSON 写法。核心模型很简单：
 
-- `conditions` + `grants`：静态重算时产生点数
-- `events`：运行时事件触发器，只推荐增加/消费点数
-- `executions`：读取或消费点数，并兑现为药水、回血、掉落等奖励
-- Java 扩展 API：当需要读取其他模组状态或执行自定义逻辑时，通过代码注册 point producer / point executor
+- `conditions` 决定 effect 是否启用
+- `grants` 在重算时写入被动点数
+- `events` 在运行时把行为转成点数变化
+- `executions` 消耗或读取点数，兑现成可见效果
 
-## 数据位置
-
-器官效果直接写在器官定义 JSON 内：
+器官效果写在器官定义文件里：
 
 - `data/<namespace>/organapi/organs/*.json`
 
-每个器官文件中的 `effects` 数组就是 OEP 的读取入口。
+OEP 读取的入口是每个器官文件中的 `effects[]`。
 
----
+## 最小结构
 
-## 1. effect 基本结构
+```json
+{
+  "conditions": [{ "type": "static" }],
+  "grants": [
+    { "type": "attribute", "attribute": "luck", "amount": 1 }
+  ],
+  "events": [],
+  "executions": []
+}
+```
 
-当前推荐 schema：
+推荐写法：
+
+- 条件只负责 gating
+- `grants` 只放静态被动值
+- `events` 尽量只做点数增减
+- `executions` 再把点数兑现成药水、回血、掉落、嘲讽等实际效果
+- 需要读取外部模组状态时，用 Java 扩展 API，不要硬塞进 JSON
+
+## 点数模型
+
+点数 key 统一写成 `type:id`，常见类型是：
+
+- `attribute:<id>`
+- `skill:<id>`
+- `counter:<id>`
+- `runtime:<id>`
+
+约定：
+
+- `runtime:*` 适合短时 token
+- `counter:*` 适合长期累积
+- `source: "self"` 表示当前器官实例自己的 source，不和同类器官串池
+- 静态重算生成的 source 会在 recompute 时重建
+- event 产生的 `organ-instance:.../event/...` source 不会被普通 recompute 清掉
+
+## 适用范围
+
+### 你该用 JSON 的时候
+
+- 只是条件、事件、执行的组合
+- 只依赖 OEP/vanilla 状态
+- 不需要读别的模组 API
+
+### 你该用 Java 扩展的时候
+
+- 需要读外部模组状态
+- 需要自定义条件
+- 需要自定义 point executor
+- 需要从代码注入 runtime event
+
+## 事件与执行原则
+
+- `events` 优先只写 `add_points` / `consume_points`
+- `executions` 在后续阶段读取这些点数并产生结果
+- 伤害类行为目前仍有少量事件侧例外，因为需要攻击上下文
+- `effect_point_viewer` 会强制 recompute，适合看点数，但可能掩盖 stale recompute 问题
+
+## 兼容提示
+
+- 旧草案里混用过一些别名字段，当前以本文件的表格为准
+- `conditions` 目前是 AND 关系，不支持 OR / NOT / 嵌套组
+- `has_organ` 不做数量比较
+- `movement_speed` 按倍率处理，不要当成整数加法
+
+## 示例
 
 ```json
 {
   "conditions": [
-    { "type": "static" }
+    { "type": "weather", "value": "rain" },
+    { "type": "time", "mode": "night" }
   ],
   "grants": [
     {
       "type": "attribute",
-      "attribute": "luck",
-      "amount": 1
+      "attribute": "movement_speed",
+      "amount": 0.1
     }
   ],
   "events": [
@@ -42,11 +104,9 @@
           "type": "runtime",
           "id": "heart_regen_pulse",
           "amount": 1,
-          "duration_ticks": 2
+          "duration_ticks": 20
         }
-      ],
-      "consume_points": [],
-      "actions": []
+      ]
     }
   ],
   "executions": [
@@ -64,444 +124,150 @@
 }
 ```
 
-职责：
-
-- `conditions`：当前 effect 是否启用
-- `grants`：条件满足时写入 `organ` 来源层的被动点数
-- `events`：玩家行为发生时增加/消费点数
-- `executions`：从点数池读取/消费点数，并产生实际效果
-
-`conditions` 数组是 **AND 关系**，目前不支持 OR / NOT / 嵌套分组。
-
----
-
-## 2. 点数池与来源分层
-
-点数 key 格式：
-
-- `attribute:<id>`
-- `skill:<id>`
-- `counter:<id>`
-- `runtime:<id>`
-- 其他自定义 type
-
-示例：
-
-- `attribute:minecraft:luck`
-- `skill:organeffectprocessor:wonder_sight`
-- `counter:organeffectprocessor:charge`
-- `runtime:organeffectprocessor:storm_insight_token`
-
-点数按 source layer 存储，再聚合成最终总量。常见来源：
-
-- `organ`：静态器官 grants
-- 自动生成的器官实例 source：`source: "self"`
-- Java 扩展 API 注册的 producer id
-- `runtime`：带过期时间的运行时点数
-
-### `source: "self"`
-
-在 runtime events 中推荐使用：
-
-```json
-"source": "self"
-```
-
-含义：按当前器官实例自动生成唯一 source tag，避免多个同类器官互相串池。
-
----
-
-### 2.5 `source: "self"`
-
-在 runtime 事件里推荐使用：
-
-```json
-"source": "self"
-```
-
-含义：按**当前器官实例**生成唯一 source tag，而不是把所有同类器官写进一个共享 source。
-
-这不仅影响 `add_points`，也影响后续 execution / event action 对 source-backed 点数的读取与消费。
-
-当前规则可以概括为：
-
-- `runtime:*` 点按全局 runtime key 读取
-- 非 runtime source 点默认按同名 key 聚合为共享池读取/消费
-- 如果显式写死自定义 `source`，则会限制到该 source
-- `self` 用于“当前器官实例自己的 source”，最适合器官局部累积/局部消费的设计
-
----
-
-## 3. grants 写法
-
-### attribute
-
-```json
-{
-  "type": "attribute",
-  "attribute": "luck",
-  "amount": 1
-}
-```
-
-未写命名空间时，attribute 默认补 `minecraft:`。
-
-常用可测属性：
-
-- `luck`
-- `attack_damage`
-- `max_health`
-- `movement_speed`
-
-最终是否生效取决于该 attribute 是否已注册、玩家是否拥有对应 `AttributeInstance`。
-
-### skill
-
-```json
-{
-  "type": "skill",
-  "skill_name": "wonder_sight",
-  "amount": 1
-}
-```
-
-未写命名空间时，默认补当前数据包 namespace。技能需要在 Java 中注册 metadata 和 executor。
-
-### counter / runtime
-
-```json
-{
-  "type": "counter",
-  "id": "charge",
-  "amount": 1
-}
-```
-
-`counter:*` 常用于长期累积值；`runtime:*` 常用于带过期时间的短时 token。它们本身不会自动变成属性或技能，通常由 `executions` 消费或观察。
-
----
-
-## 4. 条件类型
-
-### static
-
-```json
-{ "type": "static" }
-```
-
-恒成立。
-
-### slot_index
-
-```json
-{
-  "type": "slot_index",
-  "op": "eq",
-  "value": 2
-}
-```
-
-槽位索引从 0 开始。支持：`eq`、`ne`、`gt`、`gte`、`lt`、`lte`。
-
-### distance_to_edge
-
-```json
-{
-  "type": "distance_to_edge",
-  "edge": "top",
-  "op": "lte",
-  "value": 0
-}
-```
-
-支持边：`top`、`bottom`、`left`、`right`。
-
-### weather
-
-```json
-{ "type": "weather", "value": "rain" }
-```
-
-支持：`clear`、`rain`、`thunder`。
-
-### time
-
-```json
-{ "type": "time", "mode": "night" }
-```
-
-支持 `day` / `night`，也支持数值比较和区间：
-
-```json
-{ "type": "time", "min": 18000, "max": 2000 }
-```
-
-`min > max` 表示跨午夜区间。
-
-### has_organ
-
-```json
-{
-  "type": "has_organ",
-  "scope": "symmetric_position",
-  "organ": "organeffectprocessor:wonder_leg_muscle"
-}
-```
-
-支持 scope：
-
-- `whole_body`
-- `body_part`
-- `exact_position`
-- `symmetric_position`
-
-### biome
-
-```json
-{ "type": "biome", "value": "minecraft:plains" }
-```
-
-也支持 biome tag：
-
-```json
-{ "type": "biome", "biome_tag": "minecraft:is_overworld" }
-```
-
-为了兼容旧草案，也接受：
-
-```json
-{ "type": "biome", "tag": "minecraft:is_overworld" }
-```
-
-### dimid
-
-```json
-{ "type": "dimid", "value": "minecraft:the_nether" }
-```
-
-### lightlevel
-
-```json
-{ "type": "lightlevel", "op": "gte", "value": 12 }
-```
-
-与 `slot_index` 一样支持：`eq`、`ne`、`gt`、`gte`、`lt`、`lte`。
-
-### stepon
-
-```json
-{ "type": "stepon", "block": "minecraft:moss_block" }
-```
-
-也支持 block tag：
-
-```json
-{ "type": "stepon", "block_tag": "minecraft:wool" }
-```
-
-`biome` / `stepon` 推荐优先使用 tag 方案来覆盖一组目标，避免开发者逐个枚举群系或方块。
-
-`movement_speed` 这类速度属性当前按倍率处理，示例值应写成类似 `0.1`（+10%），不要继续按整数加法理解。
-
----
-
-## 5. events 写法
-
-当前支持事件：
-
-- `move`
-- `attack`
-- `attacked`
-- `health_loss`
-- `kill`
-- `biome_change`
-- `dimension_change`
-- `eat`
-- `mine`
-- `use_item`
-
-推荐规则：events 只负责点数变化。伤害类 actions 是当前例外，因为它们需要当前攻击上下文。
-
-### move
-
-```json
-{
-  "type": "move",
-  "distance": 1,
-  "source": "self",
-  "add_points": [
-    {
-      "type": "counter",
-      "id": "charge",
-      "amount": 1,
-      "source": "self"
-    }
-  ],
-  "consume_points": [],
-  "actions": []
-}
-```
-
-### attack
-
-```json
-{
-  "type": "attack",
-  "source": "self",
-  "add_points": [
-    {
-      "type": "runtime",
-      "id": "charge",
-      "amount": 1,
-      "duration_ticks": 40
-    }
-  ],
-  "consume_points": [],
-  "actions": []
-}
-```
-
-`attack` 事件应优先只负责写入或消耗点数，再由 `executions` 在后续阶段读取这些点数兑现效果。
-
-### attacked / health_loss / kill
-
-```json
-{
-  "type": "attacked",
-  "add_points": [
-    {
-      "type": "runtime",
-      "id": "guard_pulse",
-      "amount": 1,
-      "duration_ticks": 2
-    }
-  ]
-}
-```
-
-- `attacked`：有攻击者时，受击者触发
-- `health_loss`：生命值实际损失时触发，不要求攻击者存在（例如摔落、火焰）
-- `kill`：击杀生物时由攻击者触发
-
-兼容别名：
-
-- `受到攻击时 -> attacked`
-- `损失生命时 -> health_loss`
-- `击杀生物时 -> kill`
-- `on_biome_change -> biome_change`
-- `on_dimension_change -> dimension_change`
-
-### biome_change / dimension_change
-
-```json
-{
-  "type": "biome_change",
-  "add_points": [
-    {
-      "type": "runtime",
-      "id": "storm_insight_token",
-      "amount": 1,
-      "duration_ticks": 40
-    }
-  ]
-}
-```
-
-- `biome_change`：玩家进入新 biome 时触发
-- `dimension_change`：玩家切换维度时触发
-
-### eat / mine / use_item
-
-这些事件通常只写 `add_points` / `consume_points`，再由 `executions` 兑现效果。
-
----
-
-## 6. executions 写法
-
-Executions 在玩家 tick / recompute / runtime event 后运行。它们读取或消费点数池。
-
-点数解析顺序：
-
-1. 先检查 `runtime:*`
-2. 再检查 source-backed 同名点数池
-3. `consume_points=false` 时只读取，不扣点
-4. `consume_points=true` 时只扣这次真正使用到的量
-
-关于 recompute 的保留/清理规则：
-
-- 静态 grants 生成的 per-instance source 会在 recompute 时清空并重建
-- event-earned `organ-instance:.../event/...` source 不会因为普通 recompute 被清掉
-- `runtime:*` 点按自己的过期时间与消费逻辑处理，不归静态 recompute 清理
-
-### apply_mob_effect
-
-```json
-{
-  "type": "apply_mob_effect",
-  "point_type": "runtime",
-  "point_id": "storm_insight_token",
-  "effect": "minecraft:night_vision",
-  "duration_ticks": 200,
-  "amplifier": 0,
-  "consume_points": true,
-  "max_consume": 1
-}
-```
-
-### heal
-
-```json
-{
-  "type": "heal",
-  "point_type": "runtime",
-  "point_id": "leg_recovery_pulse",
-  "amount": 1.0,
-  "consume_points": true,
-  "max_consume": 1
-}
-```
-
-### grant_items
-
-```json
-{
-  "type": "grant_items",
-  "point_type": "runtime",
-  "point_id": "brain_reward_token",
-  "consume_points": true,
-  "max_consume": 1,
-  "rolls": 2,
-  "unique": true,
-  "drop_if_full": true,
-  "items": [
-    { "item": "minecraft:redstone", "count": 3, "weight": 3 }
-  ]
-}
-```
-
-### taunt
-
-```json
-{
-  "type": "taunt",
-  "point_type": "runtime",
-  "point_id": "brain_reward_token",
-  "amount": 8.0,
-  "target": "hostile",
-  "consume_points": true,
-  "max_consume": 1
-}
-```
-
-目前 `target` 推荐使用 `hostile`，`amount` 表示半径（格）。
-
----
-
-## 7. 单功能示例器官
-
-现在的示例器官改成了“尽量一个器官一个功能”，便于单独安装测试：
-
-- `wonder_brain`：最简单的静态 attribute grant
+## Java 扩展 API
+
+常用入口：
+
+- `OepExtensionApi.registerPointProducer(...)`
+- `OepExtensionApi.registerConditionHandler(...)`
+- `OepExtensionApi.registerPointExecutor(...)`
+- `RuntimeEffectService.fireEvent(...)`
+- `SkillManager.registerSkill(...)`
+- `SkillManager.registerSkillExecutor(...)`
+
+原则：
+
+- producer 只写点
+- condition handler 只判断
+- executor 只消费点并执行行为
+- compat 逻辑尽量放在外部子模组里
+
+## 调试与限制
+
+测试顺序建议：
+
+1. `cd ../organAPI && ./gradlew compileJava jar`
+2. `./gradlew compileJava`
+3. 安装器官
+4. 关闭器官菜单触发重算
+5. 用 `effect_point_viewer` 检查点数
+6. 再看 tooltip、技能和执行效果
+
+当前限制：
+
+- `conditions` 只有 AND
+- 不支持 OR / NOT / 嵌套条件组
+- `has_organ` 不支持数量比较
+- `symmetric_position` 目前只支持左右臂、左右腿
+- `stepon` 依赖重算，不是逐 tick 精确切换
+- `biome_change` 通过玩家 tick 记录 biome 变化
+- `taunt` 只是尽量改目标，AI 可能很快覆盖
+- runtime 点数是 `long`
+
+## 内建能力总表
+
+### 条件
+
+| Type | 关键字段 | 用途 |
+|---|---|---|
+| `static` | 无 | 恒成立 |
+| `slot_index` | `op`, `value` | 槽位索引比较 |
+| `distance_to_edge` | `edge`, `op`, `value` | 到槽位边缘距离 |
+| `weather` | `value` | `clear` / `rain` / `thunder` |
+| `time` | `mode`, `op`, `value`, `min`, `max` | 昼夜或时间段 |
+| `has_organ` | `scope`, `body_part`, `slot`, `organ` | 器官组合门槛 |
+| `biome` | `biome`, `biome_tag` | 群系或群系列表 |
+| `dimid` | `value` | 维度 id |
+| `lightlevel` | `op`, `value` | 光照等级 |
+| `stepon` | `block`, `block_tag` | 脚下方块 |
+| `health` | `mode`, `op`, `value`, `min`, `max` | 生命值、缺失量、百分比 |
+| `hunger` | `mode`, `op`, `value`, `min`, `max` | 饥饿值、饱和度、缺失量 |
+| `air` | `mode`, `op`, `value` | 氧气或水下状态 |
+| `xp` | `mode`, `op`, `value`, `min`, `max` | 经验等级或总经验 |
+| `status_effect` | `effect`, `amplifier`, `min_duration`, `max_duration` | 药水效果 |
+| `attribute` | `attribute`, `op`, `value`, `min`, `max` | 属性值比较 |
+| `movement_state` | `state` | 跑动、潜行、游泳、飞行、落地 |
+| `environment_state` | `state` | 在水中、着火、骑乘等 |
+| `equipment` | `slot`, `item`, `item_tag`, `empty` | 装备检查 |
+| `enchantment` | `slot`, `enchantment`, `op`, `value` | 附魔等级 |
+| `nearby_entity` | `entity`, `entity_tag`, `radius`, `op`, `value`, `min`, `max` | 附近实体数量 |
+| `moon_phase` | `mode`, `op`, `value` | 月相 |
+| `biome_category` | `value` | 群系类别 |
+| `dimension_type` | `value` | 维度类型 |
+
+### 事件
+
+| Type | 关键字段 | 用途 |
+|---|---|---|
+| `move` | `distance`, `source`, `add_points`, `consume_points`, `actions` | 移动驱动 |
+| `attack` | `source`, `add_points`, `consume_points`, `actions` | 攻击者侧 |
+| `attacked` | `source`, `add_points`, `consume_points`, `actions` | 被攻击者侧 |
+| `health_loss` | `source`, `add_points`, `consume_points`, `actions` | 实际掉血 |
+| `kill` | `source`, `add_points`, `consume_points`, `actions` | 击杀 |
+| `biome_change` | `add_points`, `consume_points`, `actions` | 切换群系 |
+| `dimension_change` | `add_points`, `consume_points`, `actions` | 切换维度 |
+| `eat` | `food_only`, `item`, `item_tag`, `add_points`, `consume_points`, `actions` | 吃东西 |
+| `mine` | `block`, `block_tag`, `add_points`, `consume_points`, `actions` | 挖方块 |
+| `use_item` | `item`, `item_tag`, `add_points`, `consume_points`, `actions` | 使用物品 |
+| `jump` | `add_points`, `consume_points`, `actions` | 跳跃 |
+| `land` | `add_points`, `consume_points`, `actions` | 落地 |
+| `sprint_start` / `sprint_stop` | `add_points`, `consume_points`, `actions` | 冲刺状态 |
+| `sneak_start` / `sneak_stop` | `add_points`, `consume_points`, `actions` | 潜行状态 |
+| `swim_start` / `swim_stop` | `add_points`, `consume_points`, `actions` | 游泳状态 |
+| `enter_water` / `leave_water` | `add_points`, `consume_points`, `actions` | 进出水 |
+| `take_damage` | `add_points`, `consume_points`, `actions` | 受伤 |
+| `deal_damage` | `add_points`, `consume_points`, `actions` | 造成伤害 |
+| `projectile_hit` | `add_points`, `consume_points`, `actions` | 投射物命中 |
+| `block_place` | `add_points`, `consume_points`, `actions` | 放置方块 |
+| `item_craft` | `add_points`, `consume_points`, `actions` | 合成 |
+| `item_smelt` | `add_points`, `consume_points`, `actions` | 熔炼 |
+| `item_repair` | `add_points`, `consume_points`, `actions` | 修理 |
+| `item_enchant` | `add_points`, `consume_points`, `actions` | 附魔 |
+| `fish_catch` | `add_points`, `consume_points`, `actions` | 钓鱼收获 |
+| `sleep` | `add_points`, `consume_points`, `actions` | 睡觉 |
+| `respawn` | `add_points`, `consume_points`, `actions` | 重生 |
+| `consume_item` | `add_points`, `consume_points`, `actions` | 消耗物品 |
+| `equip_item` / `unequip_item` | `add_points`, `consume_points`, `actions` | 穿脱装备 |
+| `critical_hit` | `add_points`, `consume_points`, `actions` | 暴击 |
+| `shield_block` | `add_points`, `consume_points`, `actions` | 格挡 |
+| `parry` | `add_points`, `consume_points`, `actions` | 反击式格挡 |
+
+### 执行
+
+| Type | 关键字段 | 用途 |
+|---|---|---|
+| `apply_mob_effect` | `point_type`, `point_id`, `effect`, `duration_ticks`, `amplifier`, `consume_points`, `max_consume` | 药水效果 |
+| `heal` | `point_type`, `point_id`, `amount`, `consume_points`, `max_consume` | 治疗 |
+| `grant_items` | `point_type`, `point_id`, `items`, `rolls`, `unique`, `drop_if_full`, `consume_points`, `max_consume` | 发放物品 |
+| `taunt` | `point_type`, `point_id`, `amount`, `target`, `consume_points`, `max_consume` | 嘲讽敌对生物 |
+| `damage_self` | `amount`, `point_type`, `point_id` | 自伤 |
+| `damage_target` | `amount`, `config.radius`, `point_type`, `point_id` | 伤害附近目标 |
+| `knockback` | `amount`, `config.vertical`, `point_type`, `point_id` | 击退 |
+| `launch` | `config.y`, `point_type`, `point_id` | 纵向弹起 |
+| `teleport` | `x/y/z` 或 `dx/dy/dz`, `point_type`, `point_id` | 传送 |
+| `spawn_particle` | `config.particle`, `x/y/z`, `count` | 粒子 |
+| `play_sound` | `config.sound`, `volume`, `pitch` | 音效 |
+| `remove_effect` | `effect`, `point_type`, `point_id` | 移除指定效果 |
+| `clear_negative_effects` | `point_type`, `point_id` | 清除负面效果 |
+| `give_xp` | `amount`, `point_type`, `point_id` | 经验 |
+| `consume_hunger` | `amount`, `point_type`, `point_id` | 消耗饥饿 |
+| `restore_air` | `amount`, `point_type`, `point_id` | 恢复氧气 |
+| `set_fire` | `amount`, `point_type`, `point_id` | 点燃 |
+| `extinguish` | `point_type`, `point_id` | 熄灭 |
+| `summon_entity` | `config.entity`, `point_type`, `point_id` | 召唤实体 |
+| `drop_items` | `items`, `point_type`, `point_id` | 掉落物品 |
+| `set_cooldown` | `duration_ticks` 或 `amount`, `point_type`, `point_id` | 设置冷却 |
+| `consume_item` | `amount`, `point_type`, `point_id` | 消耗物品栈 |
+| `repair_item` | `amount`, `point_type`, `point_id` | 修理物品 |
+| `place_block` | `config.block`, `point_type`, `point_id` | 放置方块 |
+| `convert_block` | `config.from`, `config.to`, `point_type`, `point_id` | 方块转换 |
+| `force_target` | `amount`, `point_type`, `point_id` | 强制目标转向玩家 |
+
+## 单功能示例器官
+
+示例器官尽量保持“一器官一功能”，便于单独测试：
+
+- `wonder_brain`：静态 attribute grant
 - `wonder_brain_v2`：`use_item -> grant_items`
 - `wonder_heart`：`eat -> apply_mob_effect`
 - `wonder_leg_muscle`：`move -> heal`
@@ -518,111 +284,3 @@ Executions 在玩家 tick / recompute / runtime event 后运行。它们读取�
 - `wonder_warp_core`：`dimension_change`
 - `wonder_taunt_core`：`taunt`
 
-优先按“单器官单功能”方式验证，避免多个 demo 逻辑混在一起时互相干扰。
-
----
-
-## 8. Java 扩展 API
-
-当 JSON 不足以表达外部模组状态时，用 Java 扩展 API。
-
-入口：
-
-- `cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi`
-- `PointProducer`
-- `ConditionHandler`
-- `PointExecutor`
-- `OepRuntimeEvent` + `RuntimeEffectService.fireEvent(...)`
-- `SkillExecutor`
-
-### 点数获取器
-
-```java
-OepExtensionApi.registerPointProducer(new PointProducer() {
-    @Override
-    public String id() {
-        return "compat:create";
-    }
-
-    @Override
-    public void producePoints(PointProductionContext context, MutablePointSink sink) {
-        // compat 子模组在这里读取 Create 状态
-        sink.add("counter", "compatmod:rotational_energy", 10);
-    }
-});
-```
-
-Producer 只写点，不直接施加效果。source layer 使用 `id()`。
-
-### 自定义条件
-
-```java
-OepExtensionApi.registerConditionHandler("compatmod:charged_dimension", (context, condition) -> {
-    // compat 子模组在这里读取外部状态或 condition.extra()
-    return true;
-});
-```
-
-`ConditionHandler` 适合把外部模组状态、特殊实体能力或不适合塞进内建 schema 的判断留在 Java 侧。
-
-### 点数执行器
-
-```java
-OepExtensionApi.registerPointExecutor(new PointExecutor() {
-    @Override
-    public String type() {
-        return "compatmod:create_charge_burst";
-    }
-
-    @Override
-    public void execute(PointExecutionContext context, EffectDefinition.BonusAction action) {
-        PointUsage usage = context.resolveUsage(action);
-        if (usage.usedPoints() <= 0) return;
-        // 消费点数后执行 compat 行为
-    }
-});
-```
-
-对应 JSON：
-
-```json
-{
-  "type": "compatmod:create_charge_burst",
-  "point_type": "counter",
-  "point_id": "compatmod:rotational_energy",
-  "consume_points": true,
-  "max_consume": 5
-}
-```
-
-### 自定义 runtime event 注入
-
-```java
-RuntimeEffectService.fireEvent(
-    player,
-    OepRuntimeEvent.builder("compatmod:reactor_exploded", player)
-        .amount(1.0D)
-        .build()
-);
-```
-
-推荐做法是让 compat/mixin 代码先把外部业务判断做完，再向 OEP 注入一个足够明确的事件类型。OEP 侧 event 仍然应优先只做 `add_points` / `consume_points`。
-
----
-
-## 9. 调试与限制
-
-使用 `effect_point_viewer` 查看当前点数池。它会强制 recompute，因此能验证点数计算，但可能隐藏 stale recompute 问题。
-
-当前限制：
-
-- `conditions` 只有 AND 关系
-- 不支持 OR / NOT / 嵌套条件组
-- `has_organ` 不支持数量比较
-- `symmetric_position` 当前只支持左右臂、左右腿
-- 属性修正统一使用 ADDITION
-- `stepon` 属于静态 condition，是否生效依赖定期 recompute，不是逐 tick 精确切换
-- `biome_change` 当前通过玩家 tick 里记录 biome key 变化检测
-- `taunt` 是尽量把附近敌对生物目标切到玩家，部分 AI 可能会很快覆盖该目标
-- OEP 当前推荐把 event 只当作点数入口；外部 Java compat 若需要复杂筛选，应先在 compat/mixin 侧完成，再注入明确事件类型
-- runtime point 数值是 long；小数语义建议放在 execution 参数中表达

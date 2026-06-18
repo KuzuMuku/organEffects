@@ -225,6 +225,42 @@ public final class OrganEffectDisplayBuilder {
             return custom;
         }
         return switch (condition.type()) {
+            case "health" -> describeThresholdCondition("message.organeffectprocessor.effects.condition.health", condition.configString("mode"), condition.configString("op"),
+                    condition.configLong("value"), condition.configLong("min"), condition.configLong("max"));
+            case "hunger" -> describeThresholdCondition("message.organeffectprocessor.effects.condition.hunger", condition.configString("mode"), condition.configString("op"),
+                    condition.configLong("value"), condition.configLong("min"), condition.configLong("max"));
+            case "air" -> "underwater".equals(condition.configString("mode"))
+                    ? Component.translatable("message.organeffectprocessor.effects.condition.air_underwater")
+                    : describeThresholdCondition("message.organeffectprocessor.effects.condition.air", condition.configString("mode"), condition.configString("op"),
+                    condition.configLong("value"), null, null);
+            case "xp" -> describeThresholdCondition("message.organeffectprocessor.effects.condition.xp", condition.configString("mode"), condition.configString("op"),
+                    condition.configLong("value"), condition.configLong("min"), condition.configLong("max"));
+            case "status_effect" -> Component.translatable("message.organeffectprocessor.effects.condition.status_effect",
+                    describeMobEffect(condition.configString("effect")));
+            case "attribute" -> describeThresholdCondition("message.organeffectprocessor.effects.condition.attribute",
+                    describeAttributeId(condition.configString("attribute")).getString(), condition.configString("op"), condition.configLong("value"),
+                    condition.configLong("min"), condition.configLong("max"));
+            case "movement_state" -> Component.translatable("message.organeffectprocessor.effects.condition.movement_state",
+                    translateKey("message.organeffectprocessor.effects.state.", condition.configString("state")));
+            case "environment_state" -> Component.translatable("message.organeffectprocessor.effects.condition.environment_state",
+                    translateKey("message.organeffectprocessor.effects.state.", condition.configString("state")));
+            case "equipment" -> describeEquipmentCondition(condition);
+            case "enchantment" -> Component.translatable("message.organeffectprocessor.effects.condition.enchantment",
+                    translateKey("message.organeffectprocessor.effects.slot.", condition.configString("slot")),
+                    describeItemId(condition.configString("enchantment")),
+                    formatOperator(condition.configString("op")), valueOf(condition.configLong("value")));
+            case "nearby_entity" -> describeThresholdCondition("message.organeffectprocessor.effects.condition.nearby_entity",
+                    describeEntityId(condition.configString("entity"), condition.configString("entity_tag")).getString(),
+                    condition.configString("op"), condition.configLong("value"), condition.configLong("min"), condition.configLong("max"));
+            case "moon_phase" -> condition.configString("mode") != null
+                    ? Component.translatable("message.organeffectprocessor.effects.condition.moon_phase_mode",
+                    translateKey("message.organeffectprocessor.effects.moon_phase.", condition.configString("mode")))
+                    : Component.translatable("message.organeffectprocessor.effects.condition.moon_phase_value",
+                    formatOperator(condition.configString("op")), valueOf(condition.configLong("value")));
+            case "biome_category" -> Component.translatable("message.organeffectprocessor.effects.condition.biome_category",
+                    condition.configString("value"));
+            case "dimension_type" -> Component.translatable("message.organeffectprocessor.effects.condition.dimension_type",
+                    describeDimensionId(condition.configString("value")));
             case "slot_index" -> Component.translatable("message.organeffectprocessor.effects.condition.slot_index",
                     formatOperator(condition.operator()), valueOf(condition.value()));
             case "distance_to_edge" -> Component.translatable("message.organeffectprocessor.effects.condition.distance_to_edge",
@@ -316,14 +352,42 @@ public final class OrganEffectDisplayBuilder {
             return custom;
         }
         return switch (action.type()) {
+            case "damage_self" -> Component.translatable("message.organeffectprocessor.effects.action.damage_self", valueOf(action.amount()));
+            case "damage_target" -> Component.translatable("message.organeffectprocessor.effects.action.damage_target", valueOf(action.amount()));
+            case "knockback" -> Component.translatable("message.organeffectprocessor.effects.action.knockback", valueOf(action.amount()));
+            case "launch" -> Component.translatable("message.organeffectprocessor.effects.action.launch", valueOf(action.configDouble("y")));
+            case "teleport" -> describeTeleportAction(action);
+            case "spawn_particle" -> Component.translatable("message.organeffectprocessor.effects.action.spawn_particle",
+                    translateKey("message.organeffectprocessor.effects.unknown.", action.configString("particle")));
+            case "play_sound" -> Component.translatable("message.organeffectprocessor.effects.action.play_sound",
+                    translateKey("message.organeffectprocessor.effects.unknown.", action.configString("sound")));
+            case "remove_effect" -> Component.translatable("message.organeffectprocessor.effects.action.remove_effect", describeMobEffect(action.effectId()));
+            case "clear_negative_effects" -> Component.translatable("message.organeffectprocessor.effects.action.clear_negative_effects");
+            case "give_xp" -> Component.translatable("message.organeffectprocessor.effects.action.give_xp", valueOf(action.amount()));
+            case "consume_hunger" -> Component.translatable("message.organeffectprocessor.effects.action.consume_hunger", valueOf(action.amount()));
+            case "restore_air" -> Component.translatable("message.organeffectprocessor.effects.action.restore_air", valueOf(action.amount()));
+            case "set_fire" -> Component.translatable("message.organeffectprocessor.effects.action.set_fire", valueOf(action.amount()));
+            case "extinguish" -> Component.translatable("message.organeffectprocessor.effects.action.extinguish");
+            case "summon_entity" -> Component.translatable("message.organeffectprocessor.effects.action.summon_entity",
+                    describeEntityId(action.configString("entity"), null));
+            case "drop_items" -> Component.translatable("message.organeffectprocessor.effects.action.drop_items", valueOf(action.items().size()));
+            case "set_cooldown" -> Component.translatable("message.organeffectprocessor.effects.action.set_cooldown", valueOf(action.durationTicks() != null ? action.durationTicks() : action.amount()));
+            case "consume_item" -> Component.translatable("message.organeffectprocessor.effects.action.consume_item", valueOf(action.amount()));
+            case "repair_item" -> Component.translatable("message.organeffectprocessor.effects.action.repair_item", valueOf(action.amount()));
+            case "place_block" -> Component.translatable("message.organeffectprocessor.effects.action.place_block",
+                    describeBlockId(action.configString("block")));
+            case "convert_block" -> Component.translatable("message.organeffectprocessor.effects.action.convert_block",
+                    describeBlockId(action.configString("from")), describeBlockId(action.configString("to")));
+            case "force_target" -> Component.translatable("message.organeffectprocessor.effects.action.force_target", valueOf(action.amount()));
             case "apply_mob_effect" -> Component.translatable("message.organeffectprocessor.effects.action.apply_mob_effect",
                     describeMobEffect(action.effectId()), valueOf(action.durationTicks()), valueOf(action.amplifier()));
             case "heal" -> Component.translatable("message.organeffectprocessor.effects.action.heal", valueOf(action.amount()));
             case "grant_items" -> Component.translatable("message.organeffectprocessor.effects.action.grant_items",
                     valueOf(action.rolls()), valueOf(action.items().size()));
             case "taunt" -> Component.translatable("message.organeffectprocessor.effects.action.taunt",
+                    translateKey("message.organeffectprocessor.effects.target.", action.target()),
                     valueOf(action.amount() != null ? action.amount() : 8.0D),
-                    translateKey("message.organeffectprocessor.effects.target.", action.target()));
+                    valueOf(action.durationTicks() != null && action.durationTicks() > 0 ? action.durationTicks() : 60));
             default -> Component.literal(action.type());
         };
     }
@@ -465,6 +529,57 @@ public final class OrganEffectDisplayBuilder {
     private static Component describeBiomeId(String rawId) {
         ResourceLocation id = ResourceLocation.tryParse(rawId);
         return id != null ? Component.literal(id.toString()) : Component.literal(rawId);
+    }
+
+    private static Component describeAttributeId(String rawId) {
+        ResourceLocation id = ResourceLocation.tryParse(rawId);
+        return id != null ? Component.literal(id.toString()) : Component.literal(rawId == null ? "?" : rawId);
+    }
+
+    private static Component describeEntityId(String rawId, String tag) {
+        if (rawId != null) {
+            return describeBiomeId(rawId);
+        }
+        if (tag != null) {
+            return Component.literal(tag);
+        }
+        return Component.translatable("message.organeffectprocessor.effects.unknown");
+    }
+
+    private static Component describeEquipmentCondition(EffectDefinition.Condition condition) {
+        if (condition.configBoolean("empty") != null) {
+            return Component.translatable("message.organeffectprocessor.effects.condition.equipment_empty",
+                    translateKey("message.organeffectprocessor.effects.slot.", condition.configString("slot")),
+                    condition.configBoolean("empty"));
+        }
+        if (condition.configString("item") != null) {
+            return Component.translatable("message.organeffectprocessor.effects.condition.equipment_item",
+                    translateKey("message.organeffectprocessor.effects.slot.", condition.configString("slot")),
+                    describeItemId(condition.configString("item")));
+        }
+        if (condition.configString("item_tag") != null) {
+            return Component.translatable("message.organeffectprocessor.effects.condition.equipment_tag",
+                    translateKey("message.organeffectprocessor.effects.slot.", condition.configString("slot")),
+                    condition.configString("item_tag"));
+        }
+        return Component.translatable("message.organeffectprocessor.effects.condition.equipment_any",
+                translateKey("message.organeffectprocessor.effects.slot.", condition.configString("slot")));
+    }
+
+    private static Component describeThresholdCondition(String key, String label, String operator, Long value, Long min, Long max) {
+        if (min != null || max != null) {
+            return Component.translatable(key + ".range", translateKey("message.organeffectprocessor.effects.mode.", label), valueOf(min), valueOf(max));
+        }
+        return Component.translatable(key + ".value", translateKey("message.organeffectprocessor.effects.mode.", label), formatOperator(operator), valueOf(value));
+    }
+
+    private static Component describeTeleportAction(EffectDefinition.BonusAction action) {
+        if (action.configDouble("dx") != null || action.configDouble("dy") != null || action.configDouble("dz") != null) {
+            return Component.translatable("message.organeffectprocessor.effects.action.teleport_offset",
+                    valueOf(action.configDouble("dx")), valueOf(action.configDouble("dy")), valueOf(action.configDouble("dz")));
+        }
+        return Component.translatable("message.organeffectprocessor.effects.action.teleport_absolute",
+                valueOf(action.configDouble("x")), valueOf(action.configDouble("y")), valueOf(action.configDouble("z")));
     }
 
     private static Component describeDimensionId(String rawId) {
