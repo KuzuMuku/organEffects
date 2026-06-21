@@ -68,6 +68,7 @@ Use the extension API when JSON alone is not enough, especially for compat submo
 
 Key classes:
 
+- `OepPointApi` - direct point read/write access for compat mods
 - `OepExtensionApi`
 - `PointProducer`
 - `ConditionHandler`

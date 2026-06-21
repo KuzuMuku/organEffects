@@ -12,6 +12,7 @@ import cn.kuzuanpa.organeffectprocessor.api.EffectDefinition;
 import cn.kuzuanpa.organeffectprocessor.api.extension.ConditionHandler;
 import cn.kuzuanpa.organeffectprocessor.api.extension.OepExtensionApi;
 import cn.kuzuanpa.organeffectprocessor.api.extension.PointProducer;
+import cn.kuzuanpa.organeffectprocessor.api.extension.RecomputeCallback;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectPointMap;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
@@ -20,7 +21,9 @@ import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.network.OepNetwork;
 import cn.kuzuanpa.organeffectprocessor.common.skill.SkillManager;
 import cn.kuzuanpa.organeffectprocessor.common.sync.AttributeSyncer;
+import com.mojang.logging.LogUtils;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,8 +36,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
+import org.slf4j.Logger;
 
 public final class EffectRecalculationService {
+    private static final Logger LOGGER = LogUtils.getLogger();
     public static final String ORGAN_SOURCE = "organ";
     public static final String ORGAN_INSTANCE_SOURCE_PREFIX = "organ-instance:";
     public static final String ORGAN_STATIC_INSTANCE_SOURCE_PREFIX = "organ-static-instance:";
@@ -49,7 +54,7 @@ public final class EffectRecalculationService {
             return Map.of();
         }
 
-        Map<String, Long> oldPoints = holder.getEffectPoints();
+        Map<String, Long> oldPoints = new LinkedHashMap<>(holder.getEffectPoints());
         EvaluationContext context = EvaluationContext.create(entity);
         // Static effect-instance sources are fully recomputed each pass.
         // Event-earned organ-instance sources (for example source:self from runtime events)
@@ -61,11 +66,12 @@ public final class EffectRecalculationService {
         if (entity instanceof Player player) {
             RuntimePointExecutor.execute(player);
         }
-        Map<String, Long> newPoints = holder.getEffectPoints();
+        Map<String, Long> newPoints = new LinkedHashMap<>(holder.getEffectPoints());
 
         if (entity instanceof Player player) {
             applyPlayerEffects(player, oldPoints, newPoints);
         }
+        runRecomputeCallbacks(entity, context, oldPoints, newPoints);
         return newPoints;
     }
 
@@ -136,6 +142,22 @@ public final class EffectRecalculationService {
             EffectPointMap producerPoints = new EffectPointMap();
             producer.producePoints(productionContext, (pointType, pointId, amount) -> producerPoints.add(pointType + ":" + pointId, amount));
             holder.replaceSourcePoints(producer.id(), producerPoints.snapshot());
+        }
+    }
+
+    private static void runRecomputeCallbacks(Entity entity, EvaluationContext context, Map<String, Long> oldPoints, Map<String, Long> newPoints) {
+        RecomputeCallback.RecomputeContext callbackContext = new RecomputeCallback.RecomputeContext(
+                entity,
+                context,
+                Map.copyOf(oldPoints),
+                Map.copyOf(newPoints)
+        );
+        for (RecomputeCallback callback : OepExtensionApi.getRecomputeCallbacks()) {
+            try {
+                callback.afterRecompute(callbackContext);
+            } catch (Exception exception) {
+                LOGGER.error("Recompute callback failed for entity {}", entity.getStringUUID(), exception);
+            }
         }
     }
 

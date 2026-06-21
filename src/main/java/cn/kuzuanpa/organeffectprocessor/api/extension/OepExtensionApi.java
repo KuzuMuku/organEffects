@@ -36,6 +36,7 @@ public final class OepExtensionApi {
     private static final Map<String, EventDisplayRenderer> EVENT_DISPLAYS = new LinkedHashMap<>();
     private static final Map<String, ActionDisplayRenderer> ACTION_DISPLAYS = new LinkedHashMap<>();
     private static final Map<String, EventFilterHandler> EVENT_FILTER_HANDLERS = new LinkedHashMap<>();
+    private static final Map<String, RecomputeCallback> RECOMPUTE_CALLBACKS = new LinkedHashMap<>();
 
     private OepExtensionApi() {
     }
@@ -68,8 +69,16 @@ public final class OepExtensionApi {
         EVENT_FILTER_HANDLERS.put(key, handler);
     }
 
+    public static void registerRecomputeCallback(String id, RecomputeCallback callback) {
+        RECOMPUTE_CALLBACKS.put(id, callback);
+    }
+
     public static Collection<PointProducer> getPointProducers() {
         return List.copyOf(POINT_PRODUCERS.values());
+    }
+
+    public static Collection<RecomputeCallback> getRecomputeCallbacks() {
+        return List.copyOf(RECOMPUTE_CALLBACKS.values());
     }
 
     public static PointExecutor getPointExecutor(String type) {
