@@ -192,7 +192,7 @@ public record EffectDefinition(
             String pointId,
             String source,
             long maxConsume,
-            boolean consumePoints,
+            boolean isPointsConsume,
             String effectId,
             Integer durationTicks,
             Integer amplifier,

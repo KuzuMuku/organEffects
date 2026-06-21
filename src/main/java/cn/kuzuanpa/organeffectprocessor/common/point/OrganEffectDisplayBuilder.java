@@ -421,7 +421,7 @@ public final class OrganEffectDisplayBuilder {
 
     private static Component buildExecutionHover(List<EffectDefinition.Condition> conditions, EffectDefinition.BonusAction execution) {
         MutableComponent hover = Component.empty().append(buildConditionHover(conditions));
-        if (execution.consumePoints()) {
+        if (execution.isPointsConsume()) {
             hover.append(Component.literal("\n")).append(Component.translatable("message.organeffectprocessor.effects.hover.consume_points"));
         }
         if (execution.source() != null) {
@@ -447,7 +447,7 @@ public final class OrganEffectDisplayBuilder {
             hover.append(Component.literal("\n")).append(Component.translatable("message.organeffectprocessor.effects.hover.source", event.source()));
         }
         if (execution != null) {
-            if (execution.consumePoints()) {
+            if (execution.isPointsConsume()) {
                 hover.append(Component.literal("\n")).append(Component.translatable("message.organeffectprocessor.effects.hover.consume_points"));
             }
             if (execution.source() != null) {

@@ -88,20 +88,20 @@ public final class RuntimePointExecutor {
         long runtimeAvailable = holder.getRuntimePoints().getOrDefault(pointKey, 0L);
         if (runtimeAvailable > 0L) {
             long capped = Math.min(runtimeAvailable, maxConsume);
-            long used = execution.consumePoints() ? holder.consumeRuntimePoint(pointKey, capped) : capped;
+            long used = execution.isPointsConsume() ? holder.consumeRuntimePoint(pointKey, capped) : capped;
             long remaining = holder.getRuntimePoints().getOrDefault(pointKey, 0L);
-            if (execution.consumePoints()) {
-                OepDebug.trace(player, "resolve runtime %s available=%d used=%d remaining=%d consume=%s", pointKey, runtimeAvailable, used, remaining, execution.consumePoints());
+            if (execution.isPointsConsume()) {
+                OepDebug.trace(player, "resolve runtime %s available=%d used=%d remaining=%d consume=%s", pointKey, runtimeAvailable, used, remaining, execution.isPointsConsume());
             }
             return new PointExecutor.PointUsage(Math.max(0L, used));
         }
         long available = holder.getPooledSourcePoints(pointKey, execution.source());
         long capped = Math.min(available, maxConsume);
-        long used = execution.consumePoints() ? holder.consumePooledSourcePoints(pointKey, execution.source(), capped) : capped;
+        long used = execution.isPointsConsume() ? holder.consumePooledSourcePoints(pointKey, execution.source(), capped) : capped;
         long remaining = holder.getPooledSourcePoints(pointKey, execution.source());
-        if (execution.consumePoints()) {
+        if (execution.isPointsConsume()) {
             OepDebug.trace(player, "resolve pooled %s source=%s available=%d used=%d remaining=%d consume=%s",
-                    pointKey, execution.source(), available, used, remaining, execution.consumePoints());
+                    pointKey, execution.source(), available, used, remaining, execution.isPointsConsume());
         }
         return new PointExecutor.PointUsage(Math.max(0L, used));
     }
