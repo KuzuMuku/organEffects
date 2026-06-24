@@ -252,18 +252,20 @@ public final class RuntimeEffectService {
     public static void tick(Player player) {
         TauntState state = TAUNT_STATES.get(player.getUUID());
         if (state == null) {
+            handleTickEvent(player);
             return;
         }
         long now = player.level().getGameTime();
         if (now >= state.expiresAtTick) {
             TAUNT_STATES.remove(player.getUUID());
+            handleTickEvent(player);
             return;
         }
-        if (now < state.nextRefreshTick) {
-            return;
+        if (now >= state.nextRefreshTick) {
+            applyTaunt(player, state.radius, state.target);
+            state.nextRefreshTick = now + state.refreshTicks;
         }
-        applyTaunt(player, state.radius, state.target);
-        state.nextRefreshTick = now + state.refreshTicks;
+        handleTickEvent(player);
     }
 
     public static void clearTransientState(Player player) {
@@ -272,6 +274,10 @@ public final class RuntimeEffectService {
 
     public static void fireEvent(LivingEntity entity, OepRuntimeEvent event) {
         handleEvent(entity, event);
+    }
+
+    private static void handleTickEvent(Player player) {
+        fireEvent(player, OepRuntimeEvent.builder("tick", player).build());
     }
 
     private static void applyTaunt(Player player, double radius, String target) {
@@ -361,6 +367,9 @@ public final class RuntimeEffectService {
             }
             for (EffectDefinition.EventRule eventRule : instance.effect().events()) {
                 boolean filterMatch = event.type().equals(eventRule.type()) && matchesEventFilter(eventRule, event);
+                if (filterMatch && "tick".equals(event.type()) && !matchesTickInterval(entity, eventRule)) {
+                    filterMatch = false;
+                }
                 if (entity instanceof Player player) {
                     OepDebug.trace(player, "event rule %s matched=%s", eventRule.type(), filterMatch);
                 }
@@ -459,6 +468,18 @@ public final class RuntimeEffectService {
             return false;
         }
         return OepExtensionApi.matchesExtraEventFilters(eventRule, event);
+    }
+
+    private static boolean matchesTickInterval(Entity entity, EffectDefinition.EventRule eventRule) {
+        long interval = 1L;
+        Long configured = eventRule.configLong("interval_ticks");
+        if (configured == null) {
+            configured = eventRule.configLong("interval");
+        }
+        if (configured != null) {
+            interval = Math.max(1L, configured);
+        }
+        return entity.tickCount % interval == 0L;
     }
 
     private static long countSuccessfulApplications(Entity entity, EffectDefinition.ChanceConfig chance, long attempts) {

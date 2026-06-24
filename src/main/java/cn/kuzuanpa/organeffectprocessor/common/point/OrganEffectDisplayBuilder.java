@@ -340,6 +340,15 @@ public final class OrganEffectDisplayBuilder {
         if (event.distance() != null) {
             filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.distance", event.distance()));
         }
+        if ("tick".equals(event.type())) {
+            Long intervalTicks = event.configLong("interval_ticks");
+            if (intervalTicks == null) {
+                intervalTicks = event.configLong("interval");
+            }
+            if (intervalTicks != null && intervalTicks > 1L) {
+                filters.add(Component.translatable("message.organeffectprocessor.effects.event.filter.interval_ticks", intervalTicks));
+            }
+        }
         if (filters.isEmpty()) {
             return eventName;
         }

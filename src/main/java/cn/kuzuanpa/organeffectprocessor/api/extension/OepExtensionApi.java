@@ -144,6 +144,7 @@ public final class OepExtensionApi {
         registerPointExecutor(new RemoveEffectExecutor());
         registerPointExecutor(new DropItemsExecutor());
         registerPointExecutor(new DamageTargetExecutor());
+        registerPointExecutor(new DamageNearbyEntitiesExecutor());
         registerPointExecutor(new PlaceBlockExecutor());
         registerPointExecutor(new ConvertBlockExecutor());
     }
@@ -718,6 +719,51 @@ public final class OepExtensionApi {
         }
     }
 
+    private static final class DamageNearbyEntitiesExecutor implements PointExecutor {
+        @Override
+        public String type() {
+            return "damage_nearby_entities";
+        }
+
+        @Override
+        public void execute(PointExecutionContext context, EffectDefinition.BonusAction action) {
+            PointUsage preview = context.resolveUsage(action);
+            if (preview.usedPoints() <= 0L) {
+                return;
+            }
+            Player player = context.player();
+            double radius = action.configDouble("radius") != null ? action.configDouble("radius") : 2.2D;
+            float amount = action.amount() != null ? action.amount().floatValue() : 1.0F;
+            double knockback = action.configDouble("knockback") != null ? action.configDouble("knockback") : 0.0D;
+            double verticalKnockback = action.configDouble("vertical_knockback") != null ? action.configDouble("vertical_knockback") : 0.0D;
+
+            java.util.List<net.minecraft.world.entity.LivingEntity> targets = findNearbyLivingTargets(player, radius);
+            if (targets.isEmpty()) {
+                return;
+            }
+
+            long usablePoints = preview.usedPoints();
+            if (action.isPointsConsume()) {
+                PointUsage consumed = cn.kuzuanpa.organeffectprocessor.common.effect.RuntimePointExecutor.consumePointUsage(
+                        player, context.holder(), withMaxConsume(action, usablePoints));
+                usablePoints = consumed.usedPoints();
+                if (usablePoints <= 0L) {
+                    return;
+                }
+            }
+
+            for (net.minecraft.world.entity.LivingEntity target : targets) {
+                boolean damaged = target.hurt(player.damageSources().playerAttack(player), amount);
+                if (damaged && knockback > 0.0D) {
+                    target.knockback(knockback, target.getX() - player.getX(), target.getZ() - player.getZ());
+                }
+                if (damaged && verticalKnockback > 0.0D) {
+                    target.push(0.0D, verticalKnockback, 0.0D);
+                }
+            }
+        }
+    }
+
     private static final class TeleportExecutor implements PointExecutor {
         @Override
         public String type() {
@@ -1166,6 +1212,36 @@ public final class OepExtensionApi {
             }
             level.setBlockAndUpdate(pos, toBlock.defaultBlockState());
         }
+    }
+
+    private static EffectDefinition.BonusAction withMaxConsume(EffectDefinition.BonusAction action, long maxConsume) {
+        return new EffectDefinition.BonusAction(
+                action.type(),
+                action.amount(),
+                action.config(),
+                action.pointType(),
+                action.pointId(),
+                action.source(),
+                maxConsume,
+                action.isPointsConsume(),
+                action.effectId(),
+                action.durationTicks(),
+                action.amplifier(),
+                action.target(),
+                action.items(),
+                action.rolls(),
+                action.unique(),
+                action.dropIfFull(),
+                action.chance(),
+                action.extra()
+        );
+    }
+
+    private static java.util.List<net.minecraft.world.entity.LivingEntity> findNearbyLivingTargets(Player player, double radius) {
+        AABB area = player.getBoundingBox().inflate(radius);
+        double radiusSq = radius * radius;
+        return player.level().getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, area,
+                entity -> entity != player && entity.isAlive() && !(entity instanceof Player) && entity.distanceToSqr(player) <= radiusSq);
     }
 
     private static net.minecraft.world.entity.LivingEntity findNearestLivingTarget(Player player, double radius) {
