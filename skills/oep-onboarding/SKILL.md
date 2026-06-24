@@ -253,6 +253,14 @@ cd ../organAPI && ./gradlew compileJava jar
 
 Then re-run OEP compile.
 
+If you changed an OEP public Java type or method signature and a sibling compat module like `organKubejs` still compiles against the old API, refresh OEP's local flat-dir artifact first:
+
+```bash
+./gradlew devJar
+```
+
+Then rebuild the dependent module. This is the fix when the source here is correct but the other project still resolves an older class shape from `../organEffects/build/libs`.
+
 ## Common edit patterns
 
 ### Adding or editing organ effects

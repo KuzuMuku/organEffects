@@ -2,6 +2,8 @@ package cn.kuzuanpa.organeffectprocessor.common.event;
 
 import cn.kuzuanpa.organapi.api.event.OrganStateCommittedEvent;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectHolderProvider;
+import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
+import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.effect.EffectRecalculationService;
 import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimeEffectService;
@@ -83,6 +85,10 @@ public class ServerEventHandler {
             return;
         }
         Player player = event.player;
+        IEffectHolder holder = player.getCapability(EffectCapabilities.EFFECT_HOLDER).orElse(null);
+        if (holder != null) {
+            holder.clearExpiredSkillCooldowns(player.level().getGameTime());
+        }
         RuntimeEffectService.tick(player);
         if (player.tickCount % DYNAMIC_RECOMPUTE_INTERVAL == 0) {
             EffectRecalculationService.recompute(player);

@@ -8,9 +8,7 @@
     {
       "conditions": [
         {
-          "type": "slot_index",
-          "op": "eq",
-          "value": 0
+          "type": "static"
         }
       ],
       "grants": [

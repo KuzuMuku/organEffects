@@ -1,13 +1,14 @@
 package cn.kuzuanpa.organeffectprocessor.client.input;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import cn.kuzuanpa.organeffectprocessor.client.screen.SkillWheelScreen;
 import cn.kuzuanpa.organeffectprocessor.common.network.CastSelectedSkillC2SPacket;
 import cn.kuzuanpa.organeffectprocessor.common.network.OepNetwork;
-import cn.kuzuanpa.organeffectprocessor.common.skill.SkillManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -48,7 +49,7 @@ public final class SkillKeyHandler {
 
         if (!isDown && wasDown) {
             if (activeWheel != null) {
-                activeWheel.confirmSelection();
+                activeWheel.applySelection();
             } else if (heldTicks > 0 && heldTicks < LONG_PRESS_TICKS) {
                 OepNetwork.sendToServer(new CastSelectedSkillC2SPacket());
             }
@@ -58,7 +59,7 @@ public final class SkillKeyHandler {
     }
 
     @SubscribeEvent
-    public static void onRenderOverlay(RenderGuiOverlayEvent.Post event) {
+    public static void onRenderOverlay(RenderGuiEvent.Post event) {
         SkillWheelScreen wheel = activeWheel;
         Minecraft minecraft = Minecraft.getInstance();
         if (wheel == null || minecraft.player == null) {
@@ -71,7 +72,12 @@ public final class SkillKeyHandler {
         double scaleY = (double) guiHeight / minecraft.getWindow().getScreenHeight();
         int mouseX = (int) Math.round(mouseHandler.xpos() * scaleX);
         int mouseY = (int) Math.round(mouseHandler.ypos() * scaleY);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         wheel.render(event.getGuiGraphics(), guiWidth, guiHeight, mouseX, mouseY);
+        event.getGuiGraphics().flush();
+        RenderSystem.disableBlend();
     }
 
     private static void reset() {

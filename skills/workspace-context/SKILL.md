@@ -23,6 +23,14 @@ cd ../organAPI && ./gradlew compileJava jar
 
 Then return and re-run OEP compile.
 
+If a sibling compat/addon module still sees an old OEP or OrganAPI public signature after you changed source here, refresh the flat-dir dependency jar first:
+
+```bash
+./gradlew devJar
+```
+
+Then rebuild the dependent module so it picks up the refreshed `build/libs` artifact.
+
 ## Project purpose
 
 OEP sits on top of OrganAPI and interprets organ `effects[]` JSON into a player/entity point pool.

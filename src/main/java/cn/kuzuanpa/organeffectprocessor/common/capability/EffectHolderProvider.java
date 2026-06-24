@@ -15,6 +15,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
     private static final String SOURCES_KEY = "sources";
     private static final String RUNTIME_POINTS_KEY = "runtime_points";
     private static final String RUNTIME_EXPIRATIONS_KEY = "runtime_expirations";
+    private static final String SKILL_COOLDOWNS_KEY = "skill_cooldowns";
     private static final String DEBUG_ENABLED_KEY = "debug_enabled";
     private static final String ORGAN_SOURCE = "organ";
 
@@ -40,6 +41,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         tag.put(SOURCES_KEY, holder.serializeSourcesNBT());
         tag.put(RUNTIME_POINTS_KEY, holder.serializeRuntimePointsNBT());
         tag.put(RUNTIME_EXPIRATIONS_KEY, holder.serializeRuntimeExpirationsNBT());
+        tag.put(SKILL_COOLDOWNS_KEY, holder.serializeSkillCooldownsNBT());
         if (holder.selectedSkillId != null && !holder.selectedSkillId.isBlank()) {
             tag.putString("selected_skill", holder.selectedSkillId);
         }
@@ -74,6 +76,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         private final Map<String, Map<String, Long>> sources = new LinkedHashMap<>();
         private final Map<String, Long> runtimePoints = new LinkedHashMap<>();
         private final Map<String, Long> runtimeExpirations = new LinkedHashMap<>();
+        private final Map<String, Long> skillCooldowns = new LinkedHashMap<>();
         private boolean dirty;
         private boolean debugEnabled;
         private String selectedSkillId = "";
@@ -364,6 +367,48 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         }
 
         @Override
+        public Map<String, Long> getSkillCooldowns() {
+            return new LinkedHashMap<>(skillCooldowns);
+        }
+
+        @Override
+        public long getSkillCooldownExpiration(String skillId) {
+            return skillCooldowns.getOrDefault(skillId, 0L);
+        }
+
+        @Override
+        public void setSkillCooldownExpiration(String skillId, long expireAtTick) {
+            if (skillId == null || skillId.isBlank()) {
+                return;
+            }
+            if (expireAtTick <= 0L) {
+                if (skillCooldowns.remove(skillId) != null) {
+                    dirty = true;
+                }
+                return;
+            }
+            Long previous = skillCooldowns.put(skillId, expireAtTick);
+            if (previous == null || previous.longValue() != expireAtTick) {
+                dirty = true;
+            }
+        }
+
+        @Override
+        public void clearExpiredSkillCooldowns(long gameTime) {
+            boolean changed = false;
+            for (String skillId : new LinkedHashMap<>(skillCooldowns).keySet()) {
+                long expireAt = skillCooldowns.getOrDefault(skillId, 0L);
+                if (expireAt > 0L && gameTime >= expireAt) {
+                    skillCooldowns.remove(skillId);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                dirty = true;
+            }
+        }
+
+        @Override
         public void markDirty() {
             dirty = true;
         }
@@ -406,10 +451,19 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
             return tag;
         }
 
+        net.minecraft.nbt.CompoundTag serializeSkillCooldownsNBT() {
+            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+            for (Map.Entry<String, Long> entry : skillCooldowns.entrySet()) {
+                tag.putLong(entry.getKey(), entry.getValue());
+            }
+            return tag;
+        }
+
         void deserializeAllNBT(net.minecraft.nbt.CompoundTag nbt) {
             sources.clear();
             runtimePoints.clear();
             runtimeExpirations.clear();
+            skillCooldowns.clear();
             if (nbt.contains(SOURCES_KEY)) {
                 net.minecraft.nbt.CompoundTag sourceRoot = nbt.getCompound(SOURCES_KEY);
                 for (String sourceKey : sourceRoot.getAllKeys()) {
@@ -442,6 +496,12 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
                 net.minecraft.nbt.CompoundTag expirationRoot = nbt.getCompound(RUNTIME_EXPIRATIONS_KEY);
                 for (String pointKey : expirationRoot.getAllKeys()) {
                     runtimeExpirations.put(pointKey, expirationRoot.getLong(pointKey));
+                }
+            }
+            if (nbt.contains(SKILL_COOLDOWNS_KEY)) {
+                net.minecraft.nbt.CompoundTag cooldownRoot = nbt.getCompound(SKILL_COOLDOWNS_KEY);
+                for (String skillId : cooldownRoot.getAllKeys()) {
+                    skillCooldowns.put(skillId, cooldownRoot.getLong(skillId));
                 }
             }
             dirty = false;

@@ -34,6 +34,11 @@ public final class OepNetwork {
                 CastSelectedSkillC2SPacket::decode,
                 CastSelectedSkillC2SPacket::handle,
                 java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextId++, SelectSkillC2SPacket.class,
+                SelectSkillC2SPacket::encode,
+                SelectSkillC2SPacket::decode,
+                SelectSkillC2SPacket::handle,
+                java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(nextId++, SyncSkillsS2CPacket.class,
                 SyncSkillsS2CPacket::encode,
                 SyncSkillsS2CPacket::decode,
@@ -48,6 +53,7 @@ public final class OepNetwork {
     public static void syncSkills(ServerPlayer player) {
         Map<String, Integer> levels = SkillManager.getSkillLevels(player);
         String selectedSkillId = SkillManager.getSelectedSkillId(player);
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncSkillsS2CPacket(player.getUUID(), selectedSkillId, levels));
+        Map<String, Long> cooldowns = SkillManager.getCooldownRemainingTicks(player);
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncSkillsS2CPacket(player.getUUID(), selectedSkillId, levels, cooldowns));
     }
 }

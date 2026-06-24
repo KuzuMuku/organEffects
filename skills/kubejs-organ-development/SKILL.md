@@ -36,11 +36,12 @@ Use this for adding OEP-compatible organs from KubeJS without writing a custom J
 ## Quick test loop
 
 1. `cd ../organAPI && ./gradlew compileJava jar`
-2. `./gradlew compileJava`
-3. Install the organ in-game.
-4. Close the organ menu to trigger recompute.
-5. Check tooltip output and `effect_point_viewer`.
-6. Confirm passive grants, runtime point changes, and execution results.
+2. If OEP or OrganAPI public signatures changed, run `cd ../organEffects && ./gradlew devJar` and/or `cd ../organAPI && ./gradlew devJar` before compiling this addon so the flat-dir dependency jars in `build/libs` are refreshed.
+3. `./gradlew compileJava`
+4. Install the organ in-game.
+5. Close the organ menu to trigger recompute.
+6. Check tooltip output and `effect_point_viewer`.
+7. Confirm passive grants, runtime point changes, and execution results.
 
 ## Common failures
 

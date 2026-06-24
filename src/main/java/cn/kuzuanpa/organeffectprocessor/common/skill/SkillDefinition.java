@@ -7,6 +7,7 @@ public record SkillDefinition(
         String nameKey,
         String descriptionKey,
         List<String> description,
+        int cooldownTicks,
         int maxLevel
 ) {
     public SkillDefinition {

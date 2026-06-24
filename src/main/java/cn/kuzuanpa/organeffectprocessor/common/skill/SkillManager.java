@@ -3,6 +3,7 @@ package cn.kuzuanpa.organeffectprocessor.common.skill;
 import cn.kuzuanpa.organeffectprocessor.api.extension.SkillExecutor;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
+import cn.kuzuanpa.organeffectprocessor.common.network.OepNetwork;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -12,6 +13,7 @@ import java.util.UUID;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.player.Player;
@@ -21,6 +23,7 @@ public class SkillManager {
     private static final Map<String, SkillExecutor> SKILL_EXECUTORS = new HashMap<>();
     private static final Map<UUID, Map<String, Integer>> PLAYER_SKILL_LEVELS = new HashMap<>();
     private static final Map<UUID, String> CLIENT_SELECTED_SKILLS = new HashMap<>();
+    private static final Map<UUID, Map<String, Long>> CLIENT_SKILL_COOLDOWNS = new HashMap<>();
 
     public static void registerDefaults() {
         registerSkill(new SkillDefinition(
@@ -28,6 +31,7 @@ public class SkillManager {
                 "point.organeffectprocessor.skill.organeffectprocessor.wonder_sight",
                 "point.organeffectprocessor.skill.organeffectprocessor.wonder_sight.desc",
                 List.of(),
+                20 * 15,
                 5
         ));
         registerSkillExecutor("organeffectprocessor:wonder_sight", (player, level) -> {
@@ -40,6 +44,7 @@ public class SkillManager {
                 "point.organeffectprocessor.skill.organeffectprocessor.water_breathing",
                 "point.organeffectprocessor.skill.organeffectprocessor.water_breathing.desc",
                 List.of(),
+                20 * 20,
                 5
         ));
         registerSkillExecutor("organeffectprocessor:water_breathing", (player, level) -> {
@@ -52,6 +57,7 @@ public class SkillManager {
                 "point.organeffectprocessor.skill.organeffectprocessor.double_jump",
                 "point.organeffectprocessor.skill.organeffectprocessor.double_jump.desc",
                 List.of(),
+                20 * 5,
                 5
         ));
         registerSkillExecutor("organeffectprocessor:double_jump", (player, level) -> {
@@ -108,7 +114,7 @@ public class SkillManager {
         for (String skillId : levels.keySet()) {
             SkillDefinition definition = SKILLS.get(skillId);
             if (definition == null) {
-                definition = new SkillDefinition(skillId, skillId, skillId, List.of(), Integer.MAX_VALUE);
+                definition = new SkillDefinition(skillId, skillId, skillId, List.of(), 0, Integer.MAX_VALUE);
             }
             available.put(skillId, definition);
         }
@@ -142,9 +148,20 @@ public class SkillManager {
             return false;
         }
 
+        long remainingCooldown = getRemainingCooldownTicks(player, normalizedSkillId);
+        if (remainingCooldown > 0L) {
+            player.displayClientMessage(Component.translatable("message.organeffectprocessor.skill.cooldown", formatCooldownSeconds(remainingCooldown))
+                    .withStyle(ChatFormatting.RED), true);
+            return false;
+        }
+
         setSelectedSkillId(player, normalizedSkillId);
         if (!executor.cast(player, level)) {
             return false;
+        }
+        applyCooldown(player, skill, normalizedSkillId);
+        if (player instanceof ServerPlayer serverPlayer) {
+            OepNetwork.syncSkills(serverPlayer);
         }
         player.displayClientMessage(Component.translatable("message.organeffectprocessor.skill.cast", Component.translatable(skill.nameKey()))
                 .withStyle(ChatFormatting.GREEN), true);
@@ -168,13 +185,69 @@ public class SkillManager {
         }
     }
 
-    public static void syncClientSkillState(UUID playerId, String selectedSkillId, Map<String, Integer> levels) {
+    public static boolean selectSkill(Player player, String skillId) {
+        String normalizedSkillId = normalizeSkillId(skillId);
+        if (normalizedSkillId.isBlank() || getPlayerSkillLevel(player, normalizedSkillId) <= 0) {
+            return false;
+        }
+        setSelectedSkillId(player, normalizedSkillId);
+        if (player instanceof ServerPlayer serverPlayer) {
+            OepNetwork.syncSkills(serverPlayer);
+        }
+        return true;
+    }
+
+    public static long getRemainingCooldownTicks(Player player, String skillId) {
+        String normalizedSkillId = normalizeSkillId(skillId);
+        if (normalizedSkillId.isBlank()) {
+            return 0L;
+        }
+        long expireAt = 0L;
+        if (player.level().isClientSide) {
+            expireAt = CLIENT_SKILL_COOLDOWNS.getOrDefault(player.getUUID(), Map.of()).getOrDefault(normalizedSkillId, 0L);
+        } else {
+            IEffectHolder holder = player.getCapability(EffectCapabilities.EFFECT_HOLDER).orElse(null);
+            if (holder != null) {
+                expireAt = holder.getSkillCooldownExpiration(normalizedSkillId);
+            }
+        }
+        return Math.max(0L, expireAt - player.level().getGameTime());
+    }
+
+    public static Map<String, Long> getCooldownRemainingTicks(Player player) {
+        Map<String, Long> remaining = new LinkedHashMap<>();
+        for (SkillDefinition skill : getAvailableSkills(player)) {
+            long ticks = getRemainingCooldownTicks(player, skill.id());
+            if (ticks > 0L) {
+                remaining.put(skill.id(), ticks);
+            }
+        }
+        return remaining;
+    }
+
+    public static void syncClientSkillState(UUID playerId, String selectedSkillId, Map<String, Integer> levels, Map<String, Long> cooldownExpirations) {
         PLAYER_SKILL_LEVELS.put(playerId, new LinkedHashMap<>(levels));
         CLIENT_SELECTED_SKILLS.put(playerId, normalizeSkillId(selectedSkillId));
+        CLIENT_SKILL_COOLDOWNS.put(playerId, new LinkedHashMap<>(cooldownExpirations));
     }
 
     private static String normalizeSkillId(String skillId) {
         ResourceLocation parsed = ResourceLocation.tryParse(skillId);
         return parsed != null ? parsed.toString() : (skillId == null ? "" : skillId);
+    }
+
+    private static void applyCooldown(Player player, SkillDefinition skill, String normalizedSkillId) {
+        if (skill.cooldownTicks() <= 0) {
+            return;
+        }
+        IEffectHolder holder = player.getCapability(EffectCapabilities.EFFECT_HOLDER).orElse(null);
+        if (holder == null) {
+            return;
+        }
+        holder.setSkillCooldownExpiration(normalizedSkillId, player.level().getGameTime() + skill.cooldownTicks());
+    }
+
+    private static String formatCooldownSeconds(long ticks) {
+        return String.format(java.util.Locale.ROOT, "%.1f", ticks / 20.0D);
     }
 }

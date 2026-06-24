@@ -49,6 +49,14 @@ public interface IEffectHolder {
 
     void setSelectedSkillId(String skillId);
 
+    Map<String, Long> getSkillCooldowns();
+
+    long getSkillCooldownExpiration(String skillId);
+
+    void setSkillCooldownExpiration(String skillId, long expireAtTick);
+
+    void clearExpiredSkillCooldowns(long gameTime);
+
     void markDirty();
 
     boolean isDirty();

@@ -5,6 +5,7 @@ import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.effect.EffectRecalculationService;
 import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimeEffectService;
+import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimePointExecutor;
 import com.google.gson.JsonElement;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -18,6 +19,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
@@ -737,25 +739,24 @@ public final class OepExtensionApi {
             double knockback = action.configDouble("knockback") != null ? action.configDouble("knockback") : 0.0D;
             double verticalKnockback = action.configDouble("vertical_knockback") != null ? action.configDouble("vertical_knockback") : 0.0D;
 
-            java.util.List<net.minecraft.world.entity.LivingEntity> targets = findNearbyLivingTargets(player, radius);
+            List<LivingEntity> targets = findNearbyLivingTargets(player, radius);
             if (targets.isEmpty()) {
                 return;
             }
 
             long usablePoints = preview.usedPoints();
             if (action.isPointsConsume()) {
-                PointUsage consumed = cn.kuzuanpa.organeffectprocessor.common.effect.RuntimePointExecutor.consumePointUsage(
-                        player, context.holder(), withMaxConsume(action, usablePoints));
+                PointUsage consumed = RuntimePointExecutor.consumePointUsage(player, context.holder(), withMaxConsume(action, usablePoints));
                 usablePoints = consumed.usedPoints();
                 if (usablePoints <= 0L) {
                     return;
                 }
             }
 
-            for (net.minecraft.world.entity.LivingEntity target : targets) {
+            for (LivingEntity target : targets) {
                 boolean damaged = target.hurt(player.damageSources().playerAttack(player), amount);
                 if (damaged && knockback > 0.0D) {
-                    target.knockback(knockback, target.getX() - player.getX(), target.getZ() - player.getZ());
+                    target.knockback(knockback, player.getX() - target.getX(), player.getZ() - target.getZ());
                 }
                 if (damaged && verticalKnockback > 0.0D) {
                     target.push(0.0D, verticalKnockback, 0.0D);

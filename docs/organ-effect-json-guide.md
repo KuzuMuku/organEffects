@@ -200,6 +200,7 @@ OEP 读取的入口是每个器官文件中的 `effects[]`。
 | Type | 关键字段 | 用途 |
 |---|---|---|
 | `move` | `distance`, `source`, `add_points`, `consume_points`, `actions` | 移动驱动 |
+| `tick` | `config.interval_ticks`, `add_points`, `consume_points`, `actions` | 周期驱动，默认每 tick 一次 |
 | `attack` | `source`, `add_points`, `consume_points`, `actions` | 攻击者侧 |
 | `attacked` | `source`, `add_points`, `consume_points`, `actions` | 被攻击者侧 |
 | `health_loss` | `source`, `add_points`, `consume_points`, `actions` | 实际掉血 |
@@ -283,4 +284,3 @@ OEP 读取的入口是每个器官文件中的 `effects[]`。
 - `wonder_drifter_core`：`biome_change`
 - `wonder_warp_core`：`dimension_change`
 - `wonder_taunt_core`：`taunt`
-

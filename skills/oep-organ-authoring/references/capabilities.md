@@ -52,6 +52,7 @@
 | Type | Common fields | Purpose | Notes |
 |---|---|---|---|
 | `move` | `distance`, `source`, `add_points`, `consume_points`, `actions` | Movement-driven point mutation | Supports distance batching |
+| `tick` | `config.interval_ticks`, `add_points`, `consume_points`, `actions` | Periodic point mutation | Fires from player tick; defaults to every tick |
 | `attack` | `source`, `add_points`, `consume_points`, `actions` | Attacker-side combat event | Reads attacker context |
 | `attacked` | `source`, `add_points`, `consume_points`, `actions` | Victim-side combat event | Triggered on being hurt |
 | `health_loss` | `source`, `add_points`, `consume_points`, `actions` | Actual damage taken | Works for non-attack damage too |
