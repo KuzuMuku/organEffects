@@ -1,6 +1,9 @@
 package cn.kuzuanpa.organeffectprocessor.common.point;
 
+import cn.kuzuanpa.organeffectprocessor.common.data.PointConfigData;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -40,17 +43,27 @@ public final class EffectPointTextHelper {
     }
 
     public static MutableComponent getDisplayName(String pointKey) {
+        MutableComponent defaultName = getDefaultDisplayName(pointKey);
+        String configuredDisplayNameKey = PointConfigData.INSTANCE.getPointConfig(pointKey)
+                .map(PointConfigData.PointConfig::displayNameKey)
+                .filter(key -> key != null && !key.isBlank())
+                .orElse(null);
+        if (configuredDisplayNameKey != null) {
+            return Component.translatableWithFallback(configuredDisplayNameKey, defaultName.getString());
+        }
+        return defaultName;
+    }
+
+    private static MutableComponent getDefaultDisplayName(String pointKey) {
+        List<String> translationKeys = getTranslationKeys(pointKey);
+        if (!translationKeys.isEmpty()) {
+            return Component.translatableWithFallback(translationKeys.get(0), fallbackName(pointKey));
+        }
         Attribute attribute = getAttribute(pointKey);
         if (attribute != null) {
             return Component.translatable(attribute.getDescriptionId());
         }
-
-        String translationKey = getTranslationKey(pointKey);
-        MutableComponent translated = Component.translatable(translationKey);
-        if (translated.getString().equals(translationKey)) {
-            return Component.literal(pointKey);
-        }
-        return translated;
+        return Component.literal(pointKey);
     }
 
     public static Component getDescription(String pointKey) {
@@ -58,11 +71,13 @@ public final class EffectPointTextHelper {
     }
 
     public static Component getDescription(String pointKey, Map<String, Long> sourceBreakdown) {
-        String translationKey = getTranslationKey(pointKey) + ".desc";
-        MutableComponent translated = Component.translatable(translationKey);
-        Component base = translated.getString().equals(translationKey)
-                ? fallbackDescription(pointKey)
-                : translated;
+        List<String> translationKeys = getTranslationKeys(pointKey);
+        Component base;
+        if (!translationKeys.isEmpty()) {
+            base = Component.translatableWithFallback(translationKeys.get(0) + ".desc", fallbackDescription(pointKey));
+        } else {
+            base = Component.literal(fallbackDescription(pointKey));
+        }
         if (sourceBreakdown.isEmpty()) {
             return base;
         }
@@ -75,12 +90,8 @@ public final class EffectPointTextHelper {
         return combined;
     }
 
-    private static Component fallbackDescription(String pointKey) {
-        Attribute attribute = getAttribute(pointKey);
-        if (attribute != null) {
-            return Component.translatable(attribute.getDescriptionId());
-        }
-        return Component.literal(pointKey);
+    private static String fallbackDescription(String pointKey) {
+        return fallbackName(pointKey);
     }
 
     private static Attribute getAttribute(String pointKey) {
@@ -94,18 +105,60 @@ public final class EffectPointTextHelper {
         return BuiltInRegistries.ATTRIBUTE.get(id);
     }
 
-    private static String getTranslationKey(String pointKey) {
+    private static List<String> getTranslationKeys(String pointKey) {
         int separator = pointKey.indexOf(':');
         if (separator < 0 || separator == pointKey.length() - 1) {
-            return TRANSLATION_PREFIX + "unknown." + sanitizeSegment(pointKey);
+            return List.of(TRANSLATION_PREFIX + "unknown." + sanitizeSegment(pointKey));
         }
 
         String type = sanitizeSegment(pointKey.substring(0, separator));
-        ResourceLocation id = ResourceLocation.tryParse(pointKey.substring(separator + 1));
+        String rawId = pointKey.substring(separator + 1);
+        ResourceLocation id = ResourceLocation.tryParse(rawId);
         if (id == null) {
-            return TRANSLATION_PREFIX + type + ".unknown." + sanitizeSegment(pointKey.substring(separator + 1));
+            return List.of(TRANSLATION_PREFIX + type + ".unknown." + sanitizeSegment(rawId));
         }
-        return TRANSLATION_PREFIX + type + "." + sanitizeSegment(id.getNamespace()) + "." + sanitizeSegment(id.getPath());
+        List<String> keys = new ArrayList<>();
+        boolean rawHadNamespace = rawId.contains(":");
+        if (!rawHadNamespace) {
+            keys.add(TRANSLATION_PREFIX + type + ".organeffectprocessor." + sanitizeSegment(id.getPath()));
+        }
+        keys.add(TRANSLATION_PREFIX + type + "." + sanitizeSegment(id.getNamespace()) + "." + sanitizeSegment(id.getPath()));
+        keys.add(TRANSLATION_PREFIX + type + "." + sanitizeSegment(id.getPath()));
+        return keys;
+    }
+
+    private static String fallbackName(String pointKey) {
+        int separator = pointKey.indexOf(':');
+        if (separator < 0 || separator == pointKey.length() - 1) {
+            return pointKey;
+        }
+        String rawId = pointKey.substring(separator + 1);
+        int namespaceSeparator = rawId.indexOf(':');
+        String path = namespaceSeparator >= 0 && namespaceSeparator < rawId.length() - 1
+                ? rawId.substring(namespaceSeparator + 1)
+                : rawId;
+        return humanizePath(path);
+    }
+
+    private static String humanizePath(String path) {
+        if (path == null || path.isBlank()) {
+            return "";
+        }
+        String[] parts = path.replace('/', '_').split("_");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            if (part.isBlank()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                builder.append(part.substring(1));
+            }
+        }
+        return builder.length() > 0 ? builder.toString() : path;
     }
 
     private static String sanitizeSegment(String value) {

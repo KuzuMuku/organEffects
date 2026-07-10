@@ -6,8 +6,10 @@ import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.effect.EffectRecalculationService;
+import cn.kuzuanpa.organeffectprocessor.common.effect.OrganStatService;
 import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimeEffectService;
 import cn.kuzuanpa.organeffectprocessor.common.effect.RuntimePointExecutor;
+import cn.kuzuanpa.organeffectprocessor.common.skill.SkillManager;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -56,6 +58,8 @@ public class ServerEventHandler {
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerLoggedInEvent event) {
         RuntimeEffectService.clearTransientState(event.getEntity());
+        OrganStatService.clearTransientState(event.getEntity());
+        SkillManager.clearTransientState(event.getEntity());
         EffectRecalculationService.recompute(event.getEntity());
         cachePlayerState(event.getEntity());
     }
@@ -66,12 +70,15 @@ public class ServerEventHandler {
             return;
         }
         RuntimeEffectService.clearTransientState(event.getEntity());
+        OrganStatService.clearTransientState(event.getEntity());
+        SkillManager.clearTransientState(event.getEntity());
         EffectRecalculationService.recompute(event.getEntity());
         cachePlayerState(event.getEntity());
     }
 
     @SubscribeEvent
     public void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        OrganStatService.onArrowJoinLevel(event);
         if (event.getLevel().isClientSide() || !(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
@@ -89,7 +96,9 @@ public class ServerEventHandler {
         if (holder != null) {
             holder.clearExpiredSkillCooldowns(player.level().getGameTime());
         }
+        SkillManager.tickActiveSkills(player);
         RuntimeEffectService.tick(player);
+        OrganStatService.tick(player);
         if (player.tickCount % DYNAMIC_RECOMPUTE_INTERVAL == 0) {
             EffectRecalculationService.recompute(player);
         } else {
@@ -176,6 +185,24 @@ public class ServerEventHandler {
     }
 
     @SubscribeEvent
+    public void onLivingTick(net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent event) {
+        if (event.getEntity().level().isClientSide() || event.getEntity() instanceof Player) {
+            return;
+        }
+        OrganStatService.tickNonPlayer(event.getEntity());
+    }
+
+    @SubscribeEvent
+    public void onBreakSpeed(PlayerEvent.BreakSpeed event) {
+        OrganStatService.onBreakSpeed(event);
+    }
+
+    @SubscribeEvent
+    public void onArrowLoose(net.minecraftforge.event.entity.player.ArrowLooseEvent event) {
+        OrganStatService.onArrowLoose(event);
+    }
+
+    @SubscribeEvent
     public void onProjectileImpact(net.minecraftforge.event.entity.ProjectileImpactEvent event) {
         if (event.getRayTraceResult() instanceof net.minecraft.world.phys.EntityHitResult entityHit && event.getProjectile().getOwner() instanceof LivingEntity owner) {
             Entity hitEntity = entityHit.getEntity();
@@ -223,12 +250,16 @@ public class ServerEventHandler {
     public void onPlayerRespawn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent event) {
         RuntimeEffectService.handleRespawn(event.getEntity());
         RuntimeEffectService.clearTransientState(event.getEntity());
+        OrganStatService.clearTransientState(event.getEntity());
+        SkillManager.clearTransientState(event.getEntity());
         cachePlayerState(event.getEntity());
     }
 
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerLoggedOutEvent event) {
         RuntimeEffectService.clearTransientState(event.getEntity());
+        OrganStatService.clearTransientState(event.getEntity());
+        SkillManager.clearTransientState(event.getEntity());
     }
 
     @SubscribeEvent
@@ -243,11 +274,17 @@ public class ServerEventHandler {
 
     @SubscribeEvent
     public void onUseItemFinish(LivingEntityUseItemEvent.Finish event) {
+        OrganStatService.onUseItemFinish(event);
         ItemStack stack = event.getItem();
         if (!stack.isEdible()) {
             return;
         }
         RuntimeEffectService.handleEat(event.getEntity(), stack);
+    }
+
+    @SubscribeEvent
+    public void onMobEffectApplicable(net.minecraftforge.event.entity.living.MobEffectEvent.Applicable event) {
+        OrganStatService.onMobEffectApplicable(event);
     }
 
     @SubscribeEvent

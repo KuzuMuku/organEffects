@@ -1225,6 +1225,8 @@ public final class OepExtensionApi {
                 action.source(),
                 maxConsume,
                 action.isPointsConsume(),
+                action.hidden(),
+                action.customDisplayKey(),
                 action.effectId(),
                 action.durationTicks(),
                 action.amplifier(),

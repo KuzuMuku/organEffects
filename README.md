@@ -43,6 +43,7 @@ Then rebuild OEP.
 - Capability point storage: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/capability/`
 - Organ item registration: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/registry/OepItems.java`
 - Organ JSON: `src/main/resources/data/organeffectprocessor/organapi/organs/`
+- Point config JSON: `src/main/resources/data/<namespace>/point_config/*.json`
 - Organ item placement tag: `src/main/resources/data/organapi/tags/items/organs.json`
 - Localizations: `src/main/resources/assets/organeffectprocessor/lang/en_us.json`
 
@@ -119,6 +120,28 @@ Representative focused samples now include:
 
 - Effect JSON guide: `docs/organ-effect-json-guide.md`
 - Skills: `skills`
+
+## Point Config
+
+OEP supports optional point-level config files under `data/<namespace>/point_config/*.json`.
+
+Current supported fields:
+
+- `point`: full point key such as `organ_stat:organeffectprocessor:muscular_strength`
+- `display_name_key`: optional translation key used to override the default display-name lookup for this point
+- `sync_to_client`: whether this point should be included in the lightweight client sync cache
+
+Example:
+
+```json
+{
+  "point": "organ_stat:organeffectprocessor:muscular_strength",
+  "display_name_key": "point.organeffectprocessor.organ_stat.organeffectprocessor.muscular_strength",
+  "sync_to_client": true
+}
+```
+
+If a point has no config file, OEP keeps its previous default behavior. If `display_name_key` is omitted, OEP keeps the existing default name resolution rules. Point config is intended as an extension point, so more fields can be added later without changing organ JSON structure.
 
 ## Quick organ checklist
 

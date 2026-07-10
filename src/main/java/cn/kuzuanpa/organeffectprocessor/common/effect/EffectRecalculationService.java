@@ -17,6 +17,7 @@ import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.EffectPointMap;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.data.OrganEffectData;
+import cn.kuzuanpa.organeffectprocessor.common.data.PointConfigData;
 import cn.kuzuanpa.organeffectprocessor.common.debug.OepDebug;
 import cn.kuzuanpa.organeffectprocessor.common.network.OepNetwork;
 import cn.kuzuanpa.organeffectprocessor.common.skill.SkillManager;
@@ -32,6 +33,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
@@ -70,6 +72,8 @@ public final class EffectRecalculationService {
 
         if (entity instanceof Player player) {
             applyPlayerEffects(player, oldPoints, newPoints);
+        } else if (entity instanceof LivingEntity livingEntity) {
+            OrganStatService.applyNonPlayer(livingEntity, newPoints);
         }
         runRecomputeCallbacks(entity, context, oldPoints, newPoints);
         return newPoints;
@@ -105,9 +109,11 @@ public final class EffectRecalculationService {
 
     private static void applyPlayerEffects(Player player, Map<String, Long> oldPoints, Map<String, Long> newPoints) {
         AttributeSyncer.applyFromMap(player, oldPoints, newPoints);
+        OrganStatService.apply(player, newPoints);
         SkillManager.updatePlayerSkills(player, newPoints);
         if (player instanceof ServerPlayer serverPlayer) {
             OepNetwork.syncSkills(serverPlayer);
+            OepNetwork.syncClientPoints(serverPlayer, PointConfigData.INSTANCE.collectClientSyncPoints(newPoints));
         }
     }
 

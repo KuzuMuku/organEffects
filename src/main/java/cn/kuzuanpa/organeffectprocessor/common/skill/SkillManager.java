@@ -5,18 +5,29 @@ import cn.kuzuanpa.organeffectprocessor.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffectprocessor.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffectprocessor.common.network.OepNetwork;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.DragonFireball;
+import net.minecraft.world.entity.projectile.ShulkerBullet;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class SkillManager {
     private static final Map<String, SkillDefinition> SKILLS = new HashMap<>();
@@ -24,6 +35,7 @@ public class SkillManager {
     private static final Map<UUID, Map<String, Integer>> PLAYER_SKILL_LEVELS = new HashMap<>();
     private static final Map<UUID, String> CLIENT_SELECTED_SKILLS = new HashMap<>();
     private static final Map<UUID, Map<String, Long>> CLIENT_SKILL_COOLDOWNS = new HashMap<>();
+    private static final Map<UUID, GuardianBeamState> ACTIVE_GUARDIAN_BEAMS = new HashMap<>();
 
     public static void registerDefaults() {
         registerSkill(new SkillDefinition(
@@ -65,6 +77,137 @@ public class SkillManager {
                     false, false, true));
             return true;
         });
+        registerSkill(new SkillDefinition(
+                "organeffectprocessor:dragon_breath",
+                "point.organeffectprocessor.skill.organeffectprocessor.dragon_breath",
+                "point.organeffectprocessor.skill.organeffectprocessor.dragon_breath.desc",
+                List.of(),
+                20 * 12,
+                5
+        ));
+        registerSkillExecutor("organeffectprocessor:dragon_breath", (player, level) -> {
+            Vec3 look = player.getLookAngle().normalize();
+            Vec3 spawn = getProjectileSpawnPosition(player, 1.5D);
+            DragonFireball fireball = new DragonFireball(player.level(), player, look.x, look.y, look.z);
+            fireball.moveTo(spawn.x, spawn.y, spawn.z, player.getYRot(), player.getXRot());
+            fireball.setDeltaMovement(look.scale(0.55D + Math.min(level, 5) * 0.05D));
+            player.level().addFreshEntity(fireball);
+            return true;
+        });
+        registerSkill(new SkillDefinition(
+                "organeffectprocessor:shulker_bolt",
+                "point.organeffectprocessor.skill.organeffectprocessor.shulker_bolt",
+                "point.organeffectprocessor.skill.organeffectprocessor.shulker_bolt.desc",
+                List.of(),
+                20 * 8,
+                5
+        ));
+        registerSkillExecutor("organeffectprocessor:shulker_bolt", (player, level) -> {
+            LivingEntity target = findLookTarget(player, 20.0D, 0.75D);
+            if (target == null) {
+                player.displayClientMessage(Component.translatable("message.organeffectprocessor.skill.no_target").withStyle(ChatFormatting.RED), true);
+                return false;
+            }
+            Vec3 spawn = getProjectileSpawnPosition(player, 1.0D);
+            ShulkerBullet bullet = new ShulkerBullet(player.level(), player, target, getDominantAxis(player.getLookAngle()));
+            bullet.moveTo(spawn.x, spawn.y, spawn.z, player.getYRot(), player.getXRot());
+            bullet.setDeltaMovement(player.getLookAngle().normalize().scale(0.35D + Math.min(level, 5) * 0.03D));
+            player.level().addFreshEntity(bullet);
+            return true;
+        });
+        registerSkill(new SkillDefinition(
+                "organeffectprocessor:guardian_beam",
+                "point.organeffectprocessor.skill.organeffectprocessor.guardian_beam",
+                "point.organeffectprocessor.skill.organeffectprocessor.guardian_beam.desc",
+                List.of(),
+                20 * 10,
+                5
+        ));
+        registerSkillExecutor("organeffectprocessor:guardian_beam", (player, level) -> {
+            LivingEntity target = findLookTarget(player, 24.0D, 0.85D);
+            if (target == null) {
+                player.displayClientMessage(Component.translatable("message.organeffectprocessor.skill.no_target").withStyle(ChatFormatting.RED), true);
+                return false;
+            }
+            long now = player.level().getGameTime();
+            ACTIVE_GUARDIAN_BEAMS.put(player.getUUID(), new GuardianBeamState(target.getUUID(), level, now + 30L));
+            OepNetwork.sendBeamEffect(player, OepNetwork.BeamEffectKind.GUARDIAN, target, 30);
+            player.level().playSound(null, player.blockPosition(), SoundEvents.GUARDIAN_ATTACK, SoundSource.PLAYERS, 1.0F, 1.0F);
+            return true;
+        });
+    }
+
+    private static LivingEntity findLookTarget(Player player, double range, double dotThreshold) {
+        Vec3 eye = player.getEyePosition();
+        Vec3 look = player.getLookAngle().normalize();
+        AABB area = player.getBoundingBox().inflate(range);
+        return player.level().getEntitiesOfClass(LivingEntity.class, area, entity -> entity != player && entity.isAlive() && player.hasLineOfSight(entity)).stream()
+                .filter(entity -> {
+                    Vec3 toTarget = entity.getBoundingBox().getCenter().subtract(eye);
+                    double distance = toTarget.length();
+                    if (distance <= 0.001D || distance > range) {
+                        return false;
+                    }
+                    return look.dot(toTarget.normalize()) >= dotThreshold;
+                })
+                .min(Comparator.comparingDouble(player::distanceToSqr))
+                .orElse(null);
+    }
+
+    private static Vec3 getProjectileSpawnPosition(Player player, double forwardDistance) {
+        Vec3 eye = player.getEyePosition();
+        Vec3 look = player.getLookAngle().normalize();
+        return eye.add(look.scale(forwardDistance)).add(0.0D, -0.2D, 0.0D);
+    }
+
+    private static Direction.Axis getDominantAxis(Vec3 direction) {
+        double x = Math.abs(direction.x);
+        double y = Math.abs(direction.y);
+        double z = Math.abs(direction.z);
+        if (y >= x && y >= z) {
+            return Direction.Axis.Y;
+        }
+        return x >= z ? Direction.Axis.X : Direction.Axis.Z;
+    }
+
+    public static void tickActiveSkills(Player player) {
+        tickGuardianBeam(player);
+    }
+
+    public static void clearTransientState(Player player) {
+        ACTIVE_GUARDIAN_BEAMS.remove(player.getUUID());
+    }
+
+    private static void tickGuardianBeam(Player player) {
+        GuardianBeamState state = ACTIVE_GUARDIAN_BEAMS.get(player.getUUID());
+        if (state == null || !(player.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        Entity rawTarget = serverLevel.getEntity(state.targetUuid());
+        if (!(rawTarget instanceof LivingEntity target)
+                || !target.isAlive()
+                || player.distanceToSqr(target) > 24.0D * 24.0D
+                || !player.hasLineOfSight(target)) {
+            ACTIVE_GUARDIAN_BEAMS.remove(player.getUUID());
+            OepNetwork.clearBeamEffect(player, OepNetwork.BeamEffectKind.GUARDIAN);
+            return;
+        }
+
+        target.addEffect(new MobEffectInstance(MobEffects.GLOWING, 5, 0, false, true, true));
+
+        if (serverLevel.getGameTime() < state.hitTick()) {
+            return;
+        }
+
+        target.hurt(player.damageSources().indirectMagic(player, player), 5.0F + state.level() * 2.0F);
+        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20 * (2 + state.level()), 1, false, true, true));
+        target.addEffect(new MobEffectInstance(MobEffects.GLOWING, 20 * (3 + state.level()), 0, false, true, true));
+        serverLevel.playSound(null, target.blockPosition(), SoundEvents.GUARDIAN_HURT, SoundSource.PLAYERS, 1.0F, 0.9F);
+        ACTIVE_GUARDIAN_BEAMS.remove(player.getUUID());
+        OepNetwork.clearBeamEffect(player, OepNetwork.BeamEffectKind.GUARDIAN);
+    }
+
+    private record GuardianBeamState(UUID targetUuid, int level, long hitTick) {
     }
 
     public static void registerSkill(SkillDefinition skill) {

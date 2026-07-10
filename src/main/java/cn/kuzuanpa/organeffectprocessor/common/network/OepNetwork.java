@@ -5,6 +5,7 @@ import cn.kuzuanpa.organeffectprocessor.common.skill.SkillManager;
 import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
@@ -44,6 +45,16 @@ public final class OepNetwork {
                 SyncSkillsS2CPacket::decode,
                 SyncSkillsS2CPacket::handle,
                 java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextId++, SyncClientPointsS2CPacket.class,
+                SyncClientPointsS2CPacket::encode,
+                SyncClientPointsS2CPacket::decode,
+                SyncClientPointsS2CPacket::handle,
+                java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextId++, BeamEffectS2CPacket.class,
+                BeamEffectS2CPacket::encode,
+                BeamEffectS2CPacket::decode,
+                BeamEffectS2CPacket::handle,
+                java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 
     public static void sendToServer(Object message) {
@@ -55,5 +66,30 @@ public final class OepNetwork {
         String selectedSkillId = SkillManager.getSelectedSkillId(player);
         Map<String, Long> cooldowns = SkillManager.getCooldownRemainingTicks(player);
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncSkillsS2CPacket(player.getUUID(), selectedSkillId, levels, cooldowns));
+    }
+
+    public static void syncClientPoints(ServerPlayer player, Map<String, Long> points) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncClientPointsS2CPacket(player.getUUID(), points));
+    }
+
+    public static void sendBeamEffect(Entity source, BeamEffectKind kind, Entity target, int durationTicks) {
+        if (source.level().isClientSide()) {
+            return;
+        }
+        CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> source),
+                new BeamEffectS2CPacket(kind, source.getId(), target.getId(), durationTicks));
+    }
+
+    public static void clearBeamEffect(Entity source, BeamEffectKind kind) {
+        if (source.level().isClientSide()) {
+            return;
+        }
+        CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> source),
+                new BeamEffectS2CPacket(kind, source.getId(), -1, 0));
+    }
+
+    public enum BeamEffectKind {
+        GUARDIAN,
+        END_CRYSTAL
     }
 }

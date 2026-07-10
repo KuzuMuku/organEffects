@@ -38,12 +38,13 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
             "type", "config", "op", "value", "min", "max", "edge", "mode", "scope", "body_part", "slot", "organ", "biome_tag", "tag", "block", "block_tag"
     );
     private static final Set<String> EVENT_RULE_KEYS = Set.of(
-            "type", "config", "distance", "source", "item", "item_tag", "block", "block_tag", "food_only", "add_points", "consume_points", "actions"
+            "type", "config", "distance", "source", "item", "item_tag", "block", "block_tag", "food_only", "add_points", "consume_points", "actions",
+            "hidden", "custom_display_key"
     );
     private static final Set<String> BONUS_ACTION_KEYS = Set.of(
             "type", "config", "amount", "point_type", "point_id", "id", "attribute", "skill_name", "key", "source", "max_consume",
             "consume_points", "effect", "duration_ticks", "amplifier", "target", "items", "rolls", "unique", "drop_if_full",
-            "chance"
+            "chance", "hidden", "custom_display_key"
     );
     private Map<ResourceLocation, List<EffectDefinition>> organEffects = new HashMap<>();
 
@@ -419,8 +420,10 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         List<EffectDefinition.PointMutation> addPoints = readPointMutations(eventObj, "add_points", defaultNamespace);
         List<EffectDefinition.PointMutation> consumePoints = readPointMutations(eventObj, "consume_points", defaultNamespace);
         List<EffectDefinition.BonusAction> actions = readBonusActions(eventObj, defaultNamespace);
+        boolean hidden = GsonHelper.getAsBoolean(eventObj, "hidden", false);
+        String customDisplayKey = GsonHelper.getAsString(eventObj, "custom_display_key", null);
         JsonObject extra = collectExtra(eventObj, EVENT_RULE_KEYS);
-        return new EffectDefinition.EventRule(type, config, distance, source, item, itemTag, block, blockTag, foodOnly, addPoints, consumePoints, actions, extra);
+        return new EffectDefinition.EventRule(type, config, distance, source, item, itemTag, block, blockTag, foodOnly, addPoints, consumePoints, actions, hidden, customDisplayKey, extra);
     }
 
     private static String normalizeEventType(String rawType) {
@@ -510,6 +513,8 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         String source = GsonHelper.getAsString(actionObj, "source", null);
         long maxConsume = GsonHelper.getAsLong(actionObj, "max_consume", Long.MAX_VALUE);
         boolean consumePoints = GsonHelper.getAsBoolean(actionObj, "consume_points", false);
+        boolean hidden = GsonHelper.getAsBoolean(actionObj, "hidden", false);
+        String customDisplayKey = GsonHelper.getAsString(actionObj, "custom_display_key", null);
         String effectId = actionObj.has("effect") ? normalizeId(GsonHelper.getAsString(actionObj, "effect"), defaultNamespace, true) : null;
         Integer durationTicks = actionObj.has("duration_ticks") ? GsonHelper.getAsInt(actionObj, "duration_ticks") : null;
         Integer amplifier = actionObj.has("amplifier") ? GsonHelper.getAsInt(actionObj, "amplifier") : null;
@@ -529,6 +534,8 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 source,
                 maxConsume,
                 consumePoints,
+                hidden,
+                customDisplayKey,
                 effectId,
                 durationTicks,
                 amplifier,

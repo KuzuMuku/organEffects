@@ -108,6 +108,8 @@ public record EffectDefinition(
             List<PointMutation> addPoints,
             List<PointMutation> consumePoints,
             List<BonusAction> actions,
+            boolean hidden,
+            String customDisplayKey,
             JsonObject extra
     ) {
         public EventRule {
@@ -193,6 +195,8 @@ public record EffectDefinition(
             String source,
             long maxConsume,
             boolean isPointsConsume,
+            boolean hidden,
+            String customDisplayKey,
             String effectId,
             Integer durationTicks,
             Integer amplifier,

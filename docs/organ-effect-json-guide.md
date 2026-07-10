@@ -73,6 +73,44 @@ OEP 读取的入口是每个器官文件中的 `effects[]`。
 - 伤害类行为目前仍有少量事件侧例外，因为需要攻击上下文
 - `effect_point_viewer` 会强制 recompute，适合看点数，但可能掩盖 stale recompute 问题
 
+### 展示控制
+
+`events[]` 和 `executions[]` 现在都支持下面两个可选字段，它们只影响 tooltip 和 `effect_point_viewer` 的展示，不影响实际触发与执行：
+
+- `hidden: true`
+- `custom_display_key: "your.translation.key"`
+
+规则：
+
+- `hidden: true` 会只隐藏当前这一条 event 或 execution 的展示
+- `custom_display_key` 会用该语言 key 替换默认自动生成的描述
+- 两者同时存在时，`hidden` 优先
+- 这两个字段不会连带隐藏同一个 `effect` 里的其他 grants / events / executions
+
+示例：
+
+```json
+{
+  "type": "eat",
+  "food_only": true,
+  "hidden": true,
+  "add_points": [
+    { "type": "runtime", "id": "secret_charge", "amount": 1 }
+  ]
+}
+```
+
+```json
+{
+  "type": "apply_mob_effect",
+  "point_type": "runtime",
+  "point_id": "secret_charge",
+  "effect": "minecraft:regeneration",
+  "duration_ticks": 100,
+  "custom_display_key": "tooltip.kubejs.secret_regen"
+}
+```
+
 ## 兼容提示
 
 - 旧草案里混用过一些别名字段，当前以本文件的表格为准
