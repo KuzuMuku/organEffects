@@ -1,6 +1,6 @@
 # Organ Effect JSON 开发文档
 
-本文说明 OEP 当前支持的器官效果 JSON 写法。核心模型很简单：
+本文说明 OrganEffects 当前支持的器官效果 JSON 写法。核心模型很简单：
 
 - `conditions` 决定 effect 是否启用
 - `grants` 在重算时写入被动点数
@@ -11,7 +11,7 @@
 
 - `data/<namespace>/organapi/organs/*.json`
 
-OEP 读取的入口是每个器官文件中的 `effects[]`。
+OrganEffects 读取的入口是每个器官文件中的 `effects[]`。
 
 ## 最小结构
 
@@ -56,7 +56,7 @@ OEP 读取的入口是每个器官文件中的 `effects[]`。
 ### 你该用 JSON 的时候
 
 - 只是条件、事件、执行的组合
-- 只依赖 OEP/vanilla 状态
+- 只依赖 OrganEffects/vanilla 状态
 - 不需要读别的模组 API
 
 ### 你该用 Java 扩展的时候
@@ -166,9 +166,9 @@ OEP 读取的入口是每个器官文件中的 `effects[]`。
 
 常用入口：
 
-- `OepExtensionApi.registerPointProducer(...)`
-- `OepExtensionApi.registerConditionHandler(...)`
-- `OepExtensionApi.registerPointExecutor(...)`
+- `OrganEffectsExtensionApi.registerPointProducer(...)`
+- `OrganEffectsExtensionApi.registerConditionHandler(...)`
+- `OrganEffectsExtensionApi.registerPointExecutor(...)`
 - `RuntimeEffectService.fireEvent(...)`
 - `SkillManager.registerSkill(...)`
 - `SkillManager.registerSkillExecutor(...)`

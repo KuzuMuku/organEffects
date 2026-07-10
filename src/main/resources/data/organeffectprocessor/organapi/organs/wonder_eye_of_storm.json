@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_eye_of_storm",
+  "item": "organeffects:wonder_eye_of_storm",
   "valid_parts": ["organapi:head"],
   "size": 1,
   "tooltips": ["A focused sample organ that rewards rainy nights with night vision."],
@@ -20,7 +20,7 @@
       "events": [
         {
           "type": "use_item",
-          "item": "organeffectprocessor:effect_point_viewer",
+          "item": "organeffects:effect_point_viewer",
           "add_points": [
             {
               "type": "runtime",

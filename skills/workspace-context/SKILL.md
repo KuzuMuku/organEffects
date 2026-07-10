@@ -15,15 +15,15 @@ From the project root:
 ./gradlew compileJava
 ```
 
-If OEP fails because the local OrganAPI dependency is stale:
+If OrganEffects fails because the local OrganAPI dependency is stale:
 
 ```bash
 cd ../organAPI && ./gradlew compileJava jar
 ```
 
-Then return and re-run OEP compile.
+Then return and re-run OrganEffects compile.
 
-If a sibling compat/addon module still sees an old OEP or OrganAPI public signature after you changed source here, refresh the flat-dir dependency jar first:
+If a sibling compat/addon module still sees an old OrganEffects or OrganAPI public signature after you changed source here, refresh the flat-dir dependency jar first:
 
 ```bash
 ./gradlew devJar
@@ -33,36 +33,36 @@ Then rebuild the dependent module so it picks up the refreshed `build/libs` arti
 
 ## Project purpose
 
-OEP sits on top of OrganAPI and interprets organ `effects[]` JSON into a player/entity point pool.
+OrganEffects sits on top of OrganAPI and interprets organ `effects[]` JSON into a player/entity point pool.
 
 Core architecture:
 
 - JSON `conditions` + `grants` -> static point recomputation
 - JSON `events` -> runtime point mutations
 - JSON `executions` -> consume/use points and produce visible effects
-- other mods may extend production/execution through Java registration APIs instead of adding optional hard dependencies to OEP itself
+- other mods may extend production/execution through Java registration APIs instead of adding optional hard dependencies to OrganEffects itself
 
 ## Read these files first
 
-- Bootstrap: `src/main/java/cn/kuzuanpa/organeffectprocessor/OrganEffectProcessorMod.java`
-- JSON schema: `src/main/java/cn/kuzuanpa/organeffectprocessor/api/EffectDefinition.java`
-- JSON loader: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/data/OrganEffectData.java`
-- Static recompute: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/effect/EffectRecalculationService.java`
-- Runtime events: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/effect/RuntimeEffectService.java`
-- Runtime executions: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/effect/RuntimePointExecutor.java`
-- Capability state: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/capability/IEffectHolder.java`
-- Extension API: `src/main/java/cn/kuzuanpa/organeffectprocessor/api/extension/`
-- Skills: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/skill/SkillManager.java`
-- Organ samples: `src/main/resources/data/organeffectprocessor/organapi/organs/`
-- Lang keys: `src/main/resources/assets/organeffectprocessor/lang/en_us.json`
+- Bootstrap: `src/main/java/cn/kuzuanpa/organeffects/OrganEffectProcessorMod.java`
+- JSON schema: `src/main/java/cn/kuzuanpa/organeffects/api/EffectDefinition.java`
+- JSON loader: `src/main/java/cn/kuzuanpa/organeffects/common/data/OrganEffectData.java`
+- Static recompute: `src/main/java/cn/kuzuanpa/organeffects/common/effect/EffectRecalculationService.java`
+- Runtime events: `src/main/java/cn/kuzuanpa/organeffects/common/effect/RuntimeEffectService.java`
+- Runtime executions: `src/main/java/cn/kuzuanpa/organeffects/common/effect/RuntimePointExecutor.java`
+- Capability state: `src/main/java/cn/kuzuanpa/organeffects/common/capability/IEffectHolder.java`
+- Extension API: `src/main/java/cn/kuzuanpa/organeffects/api/extension/`
+- Skills: `src/main/java/cn/kuzuanpa/organeffects/common/skill/SkillManager.java`
+- Organ samples: `src/main/resources/data/organeffects/organapi/organs/`
+- Lang keys: `src/main/resources/assets/organeffects/lang/en_us.json`
 
 ## Important directories
 
 - `src/main/java/.../api` - public data model and extension-facing interfaces
 - `src/main/java/.../common/effect` - recompute, runtime event, and execution flow
 - `src/main/java/.../common/skill` - skill metadata, selection, and cast behavior
-- `src/main/resources/data/organeffectprocessor/organapi/organs` - organ JSON definitions
-- `src/main/resources/data/organapi/tags/items/organs.json` - required placement tag for OEP organ items
+- `src/main/resources/data/organeffects/organapi/organs` - organ JSON definitions
+- `src/main/resources/data/organapi/tags/items/organs.json` - required placement tag for OrganEffects organ items
 - `docs/organ-effect-json-guide.md` - canonical JSON authoring reference
 - `.claude/skills/` - repo-local agent skills
 
@@ -73,8 +73,8 @@ Stay inside this repo and the sibling `../organAPI` workspace.
 Important integration points:
 
 - OrganAPI owns anatomy, organ slots, menus, and organ storage
-- OEP reads organ definitions from `data/<namespace>/organapi/organs/*.json`
-- OEP recalculates after OrganAPI posts `OrganStateCommittedEvent`
+- OrganEffects reads organ definitions from `data/<namespace>/organapi/organs/*.json`
+- OrganEffects recalculates after OrganAPI posts `OrganStateCommittedEvent`
 - installed organs are queried through `OrganQueryService.getInstalledOrganPositions(entity)`
 
 ## Extension model for submods
@@ -84,14 +84,14 @@ Use Java extension APIs when JSON alone is not enough.
 Typical reasons:
 
 - reading state from another mod
-- translating external energy/resources into OEP points
+- translating external energy/resources into OrganEffects points
 - adding custom execution behavior for new `executions[].type` values
-- registering new active skill behaviors without patching OEP core
+- registering new active skill behaviors without patching OrganEffects core
 
 Recommended compat pattern:
 
-- main OEP stays dependency-light
-- compat submod depends on OEP + external mod
+- main OrganEffects stays dependency-light
+- compat submod depends on OrganEffects + external mod
 - compat submod registers point producers / condition handlers / point executors in common setup
 - compat submod injects custom runtime events through `RuntimeEffectService.fireEvent(...)` when external hooks or mixins observe relevant behavior
 

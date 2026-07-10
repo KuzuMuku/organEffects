@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_leg_muscle",
+  "item": "organeffects:wonder_leg_muscle",
   "valid_parts": ["organapi:left_leg", "organapi:right_leg"],
   "size": 1,
   "tooltips": ["A focused sample organ that converts movement into healing."],

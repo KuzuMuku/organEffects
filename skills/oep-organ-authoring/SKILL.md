@@ -3,9 +3,9 @@ name: oep-organ-authoring
 description: Author Organ Effect Processor organs in JSON using the built-in condition, event, and execution catalog, with config-driven variants and point-bridge patterns.
 ---
 
-# OEP Organ Authoring
+# OrganEffects Organ Authoring
 
-Use this when adding or editing OEP organ JSON and you want to stay in data only, without Java.
+Use this when adding or editing OrganEffects organ JSON and you want to stay in data only, without Java.
 
 ## Core rules
 

@@ -1,4 +1,4 @@
-# OEP Capability Tables
+# OrganEffects Capability Tables
 
 ## Common config keys
 

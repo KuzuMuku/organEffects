@@ -18,12 +18,12 @@ From the project root:
 Optional source map:
 
 ```bash
-find src/main/java/cn/kuzuanpa/organeffectprocessor -type f | sort
+find src/main/java/cn/kuzuanpa/organeffects -type f | sort
 ```
 
 ## Project goal
 
-organEffectProcessor (OEP) is a bridge mod on top of OrganAPI. It reads embedded `effects[]` blocks from organ definition JSON, evaluates installed organs on entities, aggregates the results into a generic `Map<String, Long>`, and converts those points into runtime effects such as:
+organEffectProcessor (OrganEffects) is a bridge mod on top of OrganAPI. It reads embedded `effects[]` blocks from organ definition JSON, evaluates installed organs on entities, aggregates the results into a generic `Map<String, Long>`, and converts those points into runtime effects such as:
 
 - vanilla attribute modifiers
 - available active skills
@@ -33,14 +33,14 @@ organEffectProcessor (OEP) is a bridge mod on top of OrganAPI. It reads embedded
 Core idea:
 
 - OrganAPI owns anatomy, organ slots, menus, and organ storage.
-- OEP owns interpretation of organ `effects[]` payloads.
+- OrganEffects owns interpretation of organ `effects[]` payloads.
 - Runtime truth is an effect-point map like:
   - `attribute:minecraft:luck -> 1`
-  - `skill:organeffectprocessor:wonder_sight -> 2`
+  - `skill:organeffects:wonder_sight -> 2`
 
 ## Layout to read first
 
-- Mod bootstrap: `src/main/java/cn/kuzuanpa/organeffectprocessor/OrganEffectProcessorMod.java`
+- Mod bootstrap: `src/main/java/cn/kuzuanpa/organeffects/OrganEffectProcessorMod.java`
 - Embedded effect schema:
   - `api/EffectDefinition.java`
   - `common/data/OrganEffectData.java`
@@ -58,35 +58,35 @@ Core idea:
 - Active skill flow:
   - `common/skill/SkillDefinition.java`
   - `common/skill/SkillManager.java`
-  - `common/network/OepNetwork.java`
+  - `common/network/OrganEffectsNetwork.java`
   - `common/network/CastSkillC2SPacket.java`
   - `common/network/CastSelectedSkillC2SPacket.java`
   - `common/network/SyncSkillsS2CPacket.java`
-  - `client/input/OepKeyMappings.java`
+  - `client/input/OrganEffectsKeyMappings.java`
   - `client/input/SkillKeyHandler.java`
   - `client/screen/SkillWheelScreen.java`
 - Item registration:
-  - `common/item/OepOrganItem.java`
-  - `common/registry/OepItems.java`
+  - `common/item/OrganEffectsOrganItem.java`
+  - `common/registry/OrganEffectsItems.java`
 - Resources:
-  - `src/main/resources/data/organeffectprocessor/organapi/organs/*.json`
+  - `src/main/resources/data/organeffects/organapi/organs/*.json`
   - `src/main/resources/data/organapi/tags/items/organs.json`
-  - `src/main/resources/assets/organeffectprocessor/lang/en_us.json`
+  - `src/main/resources/assets/organeffects/lang/en_us.json`
 
 ## Relationship with OrganAPI
 
-OEP depends on OrganAPI’s anatomy and menu lifecycle.
+OrganEffects depends on OrganAPI’s anatomy and menu lifecycle.
 
 Critical OrganAPI integration points:
 
 - organ definitions are still loaded from `data/<namespace>/organapi/organs/*.json`
 - organ items should extend `cn.kuzuanpa.organapi.common.item.OrganItem`
-- OEP recalculates after OrganAPI posts `OrganStateCommittedEvent` when organ menus close
-- OEP queries installed organs via `OrganQueryService.getInstalledOrganPositions(entity)`
+- OrganEffects recalculates after OrganAPI posts `OrganStateCommittedEvent` when organ menus close
+- OrganEffects queries installed organs via `OrganQueryService.getInstalledOrganPositions(entity)`
 
 ## Effect JSON model
 
-OEP reads `effects[]` blocks embedded inside organ JSON files under `organapi/organs`.
+OrganEffects reads `effects[]` blocks embedded inside organ JSON files under `organapi/organs`.
 
 Current internal model:
 
@@ -139,13 +139,13 @@ Position checks use the 0-based organ slot index returned by OrganAPI.
 1. Organ menus close in OrganAPI.
 2. OrganAPI posts `OrganStateCommittedEvent`.
 3. `ServerEventHandler` calls `EffectRecalculationService.recompute(target)`.
-4. OEP walks installed organs via `OrganQueryService.getInstalledOrganPositions(entity)`.
+4. OrganEffects walks installed organs via `OrganQueryService.getInstalledOrganPositions(entity)`.
 5. Matching grants are accumulated into an `EffectPointMap`.
 6. The final `Map<String, Long>` is saved into `IEffectHolder`.
 7. For players:
    - `AttributeSyncer` applies attribute modifiers
    - `SkillManager` updates skill levels and selected skill
-   - `OepNetwork.syncSkills(...)` mirrors current skill state to client
+   - `OrganEffectsNetwork.syncSkills(...)` mirrors current skill state to client
 
 The point viewer also forces a recompute on use so chat output reflects current installed organs immediately.
 
@@ -170,11 +170,11 @@ Current attachment rule:
 
 ## Attribute application rules
 
-`AttributeSyncer` is responsible only for OEP-managed modifiers.
+`AttributeSyncer` is responsible only for OrganEffects-managed modifiers.
 
 Important rule:
 
-- OEP should not mutate vanilla/base attribute values directly
+- OrganEffects should not mutate vanilla/base attribute values directly
 - it uses stable UUID-backed `AttributeModifier`s keyed by `attribute:<id>` instead
 
 This avoids clobbering other mods’ values or the player’s natural base stats.
@@ -196,9 +196,9 @@ Current networking:
 
 Current default sample skills registered in `SkillManager.registerDefaults()`:
 
-- `organeffectprocessor:wonder_sight`
-- `organeffectprocessor:water_breathing`
-- `organeffectprocessor:double_jump`
+- `organeffects:wonder_sight`
+- `organeffects:water_breathing`
+- `organeffects:double_jump`
 
 Current sample effects are still basic/placeholder-friendly:
 
@@ -221,15 +221,15 @@ Behavior:
 
 Translation key conventions:
 
-- point name: `point.organeffectprocessor.<type>.<namespace>.<path>`
-- point description: `point.organeffectprocessor.<type>.<namespace>.<path>.desc`
-- point group header: `message.organeffectprocessor.points.group.<type>`
+- point name: `point.organeffects.<type>.<namespace>.<path>`
+- point description: `point.organeffects.<type>.<namespace>.<path>.desc`
+- point group header: `message.organeffects.points.group.<type>`
 
 If a translation is missing, helper code falls back to raw key text rather than failing.
 
 ## Items and organ tagging
 
-OEP-owned organ items are registered in `OepItems` and implemented through `OepOrganItem`.
+OrganEffects-owned organ items are registered in `OrganEffectsItems` and implemented through `OrganEffectsOrganItem`.
 
 Important placement requirement:
 
@@ -251,9 +251,9 @@ This project depends on the local OrganAPI jar from `../organAPI/build/libs`, so
 cd ../organAPI && ./gradlew compileJava jar
 ```
 
-Then re-run OEP compile.
+Then re-run OrganEffects compile.
 
-If you changed an OEP public Java type or method signature and a sibling compat module like `organKubejs` still compiles against the old API, refresh OEP's local flat-dir artifact first:
+If you changed an OrganEffects public Java type or method signature and a sibling compat module like `organKubejs` still compiles against the old API, refresh OrganEffects's local flat-dir artifact first:
 
 ```bash
 ./gradlew devJar
@@ -293,7 +293,7 @@ Then rebuild the dependent module. This is the fix when the source here is corre
 
 ## Gotchas
 
-- OEP is tightly coupled to the current OrganAPI workspace; if OrganAPI changes its JSON schema or organ/menu lifecycle, re-check integration points.
+- OrganEffects is tightly coupled to the current OrganAPI workspace; if OrganAPI changes its JSON schema or organ/menu lifecycle, re-check integration points.
 - The point viewer is not just a display tool; it currently triggers recomputation, so it can hide stale-cache bugs if you only test through the item.
 - `double_jump` is not a real movement-based double jump yet; treat it as an incomplete sample skill.
 - The skill wheel and networking exist now, but client art/resources are still minimal.

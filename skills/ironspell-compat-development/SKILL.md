@@ -1,6 +1,6 @@
 ---
 name: ironspell-compat-development
-description: Fast reference for writing OEP organs against organIronSpell, including supported Iron's Spellbooks conditions/events/executions and the Iron attribute ids you can grant directly.
+description: Fast reference for writing OrganEffects organs against organIronSpell, including supported Iron's Spellbooks conditions/events/executions and the Iron attribute ids you can grant directly.
 ---
 
 # organIronSpell compat development
@@ -9,14 +9,14 @@ Use this when you want to write or review organ JSON that integrates Organ Effec
 
 ## Purpose
 
-`organIronSpell` is a compat layer on top of OEP.
+`organIronSpell` is a compat layer on top of OrganEffects.
 
 It gives organ authors two integration styles:
 
-1. **Direct Iron attribute grants** through normal OEP `grants`
+1. **Direct Iron attribute grants** through normal OrganEffects `grants`
 2. **Iron-aware conditions / runtime events / executions** through `organironspell:*` types
 
-Preferred OEP architecture still applies:
+Preferred OrganEffects architecture still applies:
 
 - `grants` = static/passive points
 - `events` = runtime point mutations
@@ -26,7 +26,7 @@ When possible:
 
 - use Iron attributes for passive power scaling
 - use `organironspell:*` events to create runtime tokens
-- use `organironspell:*` executions or OEP built-in executions to spend those tokens
+- use `organironspell:*` executions or OrganEffects built-in executions to spend those tokens
 
 ## First checks
 
@@ -45,7 +45,7 @@ cd ../organIronSpell && ./gradlew compileJava
 
 ## 1. Direct Iron's Spellbooks attribute grants
 
-These can be granted through normal OEP `grants` using `type: "attribute"`.
+These can be granted through normal OrganEffects `grants` using `type: "attribute"`.
 
 Example:
 
@@ -261,7 +261,7 @@ Current Iron cast-source names exposed by compat:
 These go under `effects[].executions[]`.
 
 ### `organironspell:restore_mana`
-Consumes OEP points and restores mana.
+Consumes OrganEffects points and restores mana.
 
 ```json
 {
@@ -277,7 +277,7 @@ Consumes OEP points and restores mana.
 `amount` = mana restored per consumed point.
 
 ### `organironspell:consume_mana`
-Consumes OEP points and subtracts mana.
+Consumes OrganEffects points and subtracts mana.
 
 ```json
 {
@@ -291,7 +291,7 @@ Consumes OEP points and subtracts mana.
 ```
 
 ### `organironspell:cast_spell`
-Consumes OEP points and directly casts an Iron spell.
+Consumes OrganEffects points and directly casts an Iron spell.
 
 Fields:
 
@@ -320,7 +320,7 @@ Current behavior:
 - if `amount` is present, it is treated as a per-point bonus-level multiplier
 
 ### `organironspell:clear_spell_cooldown`
-Consumes OEP points and removes a spell cooldown.
+Consumes OrganEffects points and removes a spell cooldown.
 
 ```json
 {
@@ -418,20 +418,20 @@ Use direct Iron attribute grants:
 - if you want per-organ-instance runtime isolation, use `source: "self"`
 - direct Iron attribute grants are usually better than inventing custom point bridges for passive spell stats
 
-## 9. How to design OEP compat extensions so other people can write organs quickly
+## 9. How to design OrganEffects compat extensions so other people can write organs quickly
 
-If you are building an OEP compat addon like `organIronSpell`, the most important goal is not just “make features work”, but “make organ authors need to remember as little as possible”.
+If you are building an OrganEffects compat addon like `organIronSpell`, the most important goal is not just “make features work”, but “make organ authors need to remember as little as possible”.
 
 ### Core design principles
 
 #### A. Prefer attribute grants for passive stats
-If the target mod already exposes useful attributes, expose those first through normal OEP `grants` instead of inventing a custom executor or point pipeline.
+If the target mod already exposes useful attributes, expose those first through normal OrganEffects `grants` instead of inventing a custom executor or point pipeline.
 
 Why:
 
-- organ authors already understand OEP `grants`
+- organ authors already understand OrganEffects `grants`
 - attribute effects are static and easy to debug
-- they compose naturally with existing OEP conditions
+- they compose naturally with existing OrganEffects conditions
 - they avoid unnecessary runtime/event complexity
 
 For Iron's Spellbooks, this includes:
@@ -447,7 +447,7 @@ Rule of thumb:
 - passive scaling -> attribute grant
 - temporary proc / trigger / combo -> event + runtime point + execution
 
-#### B. Reuse OEP's standard three-layer model
+#### B. Reuse OrganEffects's standard three-layer model
 Design extension features so they still fit:
 
 - `conditions`
@@ -466,7 +466,7 @@ Bad extension design:
 
 - event type that also directly performs lots of hidden effects
 - executor that secretly checks many unrelated conditions
-- custom schema that bypasses OEP's normal point flow without need
+- custom schema that bypasses OrganEffects's normal point flow without need
 
 #### C. Keep runtime triggers decoupled through points whenever possible
 When an external-mod event happens, prefer:
@@ -485,7 +485,7 @@ Why this is better:
 - easier to inspect in point viewer/debug traces
 - organ authors can remix the same trigger into many outcomes
 - multiple organs can share the same runtime trigger vocabulary
-- keeps extension behavior aligned with the rest of OEP
+- keeps extension behavior aligned with the rest of OrganEffects
 
 #### D. Make namespaced, reusable primitives instead of one-off features
 A good compat addon should expose reusable building blocks, not content-specific magic.
@@ -506,7 +506,7 @@ Bad examples:
 
 The more generic the primitive, the easier it is for other authors to combine it with their own JSON.
 
-#### E. Match the target mod's mental model, not OEP internals
+#### E. Match the target mod's mental model, not OrganEffects internals
 The extension should speak in concepts the target mod's users already understand.
 
 For Iron's Spellbooks that means:
@@ -521,17 +521,17 @@ For Iron's Spellbooks that means:
 
 Do not force organ authors to think in internal helper structures if a target-mod concept already exists.
 
-#### F. Put optional-mod knowledge in the compat addon, not OEP core
-OEP core should stay generic.
+#### F. Put optional-mod knowledge in the compat addon, not OrganEffects core
+OrganEffects core should stay generic.
 
 Compat addon responsibilities:
 
 - read external mod state
 - hook external mod events
-- translate those into OEP-compatible condition/event/execution primitives
+- translate those into OrganEffects-compatible condition/event/execution primitives
 - provide docs/examples for the target mod domain
 
-This keeps OEP clean and makes the compat package the obvious place other developers look for answers.
+This keeps OrganEffects clean and makes the compat package the obvious place other developers look for answers.
 
 ### Author-experience rules
 
@@ -546,14 +546,14 @@ Example:
 
 is much easier to remember than a deep nested object.
 
-#### 2. Reuse OEP field conventions whenever possible
+#### 2. Reuse OrganEffects field conventions whenever possible
 Examples:
 
 - numeric checks should use `op` + `value` or `min` + `max`
 - event filters should be top-level event fields
 - point consumers should still use `point_type`, `point_id`, `consume_points`, `max_consume`
 
-This makes compat JSON feel like OEP, not like a separate DSL.
+This makes compat JSON feel like OrganEffects, not like a separate DSL.
 
 #### 3. Accept common aliases when practical
 If a field has an obvious alias, supporting both can reduce friction.
@@ -577,17 +577,17 @@ That helps authors avoid overengineering simple organs.
 
 ### Practical extension-authoring checklist
 
-When adding a new OEP compat feature for another mod, ask:
+When adding a new OrganEffects compat feature for another mod, ask:
 
 1. **Can this be a plain attribute grant?**
    - if yes, document the attribute id first
 2. **If not, is it a condition, event, or execution?**
    - pick one clear role
-3. **Can it reuse existing OEP point flow?**
+3. **Can it reuse existing OrganEffects point flow?**
    - prefer yes
 4. **Is the type generic enough to be reused across many organs?**
    - if no, redesign it
-5. **Does the JSON follow normal OEP conventions?**
+5. **Does the JSON follow normal OrganEffects conventions?**
    - `op/value`, `min/max`, `point_type/point_id`, etc.
 6. **Will tooltip/viewer text be understandable?**
    - register display helpers if needed
@@ -608,11 +608,11 @@ This order gives the fastest payoff to organ authors.
 
 ### Short version
 
-If you want other people to write OEP compat organs quickly, optimize for:
+If you want other people to write OrganEffects compat organs quickly, optimize for:
 
 - passive effects via existing attributes
 - generic namespaced condition/event/execution primitives
-- OEP-native JSON conventions
+- OrganEffects-native JSON conventions
 - point-bridge architecture for runtime behavior
 - strong examples and readable tooltip output
 
@@ -620,11 +620,11 @@ That combination is much more valuable than implementing many clever but narrow 
 
 ## 10. Where to look in code
 
-OEP side:
+OrganEffects side:
 
-- `src/main/java/cn/kuzuanpa/organeffectprocessor/api/extension/OepExtensionApi.java`
-- `src/main/java/cn/kuzuanpa/organeffectprocessor/common/effect/RuntimeEffectService.java`
-- `src/main/java/cn/kuzuanpa/organeffectprocessor/common/effect/RuntimePointExecutor.java`
+- `src/main/java/cn/kuzuanpa/organeffects/api/extension/OrganEffectsExtensionApi.java`
+- `src/main/java/cn/kuzuanpa/organeffects/common/effect/RuntimeEffectService.java`
+- `src/main/java/cn/kuzuanpa/organeffects/common/effect/RuntimePointExecutor.java`
 
 compat side:
 

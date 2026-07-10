@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_light_core",
+  "item": "organeffects:wonder_light_core",
   "valid_parts": ["organapi:head"],
   "size": 1,
   "tooltips": ["A sample organ that reacts to local light level."],

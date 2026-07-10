@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_tendon",
+  "item": "organeffects:wonder_tendon",
   "valid_parts": ["organapi:left_arm", "organapi:right_arm"],
   "size": 1,
   "tooltips": ["A focused sample organ that stores temporary combat charge when attacking."],
@@ -24,7 +24,7 @@
           "add_points": [
             {
               "type": "runtime",
-              "id": "organeffectprocessor:charge",
+              "id": "organeffects:charge",
               "amount": 1,
               "duration_ticks": 40
             }

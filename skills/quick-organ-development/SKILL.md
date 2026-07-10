@@ -5,18 +5,18 @@ description: Fast checklist for adding or modifying an organ, from item registra
 
 # Quick organ development
 
-Use this when you want the shortest path to add or change an organ in OEP.
+Use this when you want the shortest path to add or change an organ in OrganEffects.
 
 ## 1. Register the item
 
 Edit:
 
-- `src/main/java/cn/kuzuanpa/organeffectprocessor/common/registry/OepItems.java`
+- `src/main/java/cn/kuzuanpa/organeffects/common/registry/OrganEffectsItems.java`
 
 Pattern:
 
 - registry name must match the organ JSON filename
-- OEP organ items should use `OepOrganItem`
+- OrganEffects organ items should use `OrganEffectsOrganItem`
 
 ## 2. Add the organ JSON
 
@@ -55,23 +55,23 @@ If the item is not in `organapi:organs`, OrganAPI slots will reject it even if t
 
 Update:
 
-- `src/main/resources/assets/organeffectprocessor/lang/en_us.json`
+- `src/main/resources/assets/organeffects/lang/en_us.json`
 
 Usually needed:
 
 - `item.<namespace>.<organ_name>`
 - any new point keys:
-  - `point.organeffectprocessor.<type>.<namespace>.<path>`
-  - `point.organeffectprocessor.<type>.<namespace>.<path>.desc`
+  - `point.organeffects.<type>.<namespace>.<path>`
+  - `point.organeffects.<type>.<namespace>.<path>.desc`
 - any new skills:
-  - `point.organeffectprocessor.skill.<namespace>.<path>`
-  - `point.organeffectprocessor.skill.<namespace>.<path>.desc`
+  - `point.organeffects.skill.<namespace>.<path>`
+  - `point.organeffects.skill.<namespace>.<path>.desc`
 
 ## 5. If the organ grants a skill
 
 Edit:
 
-- `src/main/java/cn/kuzuanpa/organeffectprocessor/common/skill/SkillManager.java`
+- `src/main/java/cn/kuzuanpa/organeffects/common/skill/SkillManager.java`
 
 Checklist:
 
@@ -81,9 +81,9 @@ Checklist:
 
 ## 6. If the organ needs non-JSON behavior
 
-Use the extension API instead of hard dependencies in OEP core:
+Use the extension API instead of hard dependencies in OrganEffects core:
 
-- `src/main/java/cn/kuzuanpa/organeffectprocessor/api/extension/`
+- `src/main/java/cn/kuzuanpa/organeffects/api/extension/`
 
 Use this when:
 
@@ -95,14 +95,14 @@ Use this when:
 
 Main extension entry points now include:
 
-- `OepExtensionApi.registerPointProducer(...)`
-- `OepExtensionApi.registerConditionHandler(...)`
-- `OepExtensionApi.registerPointExecutor(...)`
-- `RuntimeEffectService.fireEvent(...)` with `OepRuntimeEvent`
+- `OrganEffectsExtensionApi.registerPointProducer(...)`
+- `OrganEffectsExtensionApi.registerConditionHandler(...)`
+- `OrganEffectsExtensionApi.registerPointExecutor(...)`
+- `RuntimeEffectService.fireEvent(...)` with `OrganEffectsRuntimeEvent`
 
 Compat rule:
 
-- put external mod dependencies in a compat submod, not the main OEP mod
+- put external mod dependencies in a compat submod, not the main OrganEffects mod
 
 ## 7. Test quickly
 
@@ -140,5 +140,5 @@ Compat rule:
 
 - do not use the old `condition/limit/points` style for new content
 - avoid player attributes that do not actually exist on players
-- keep item id, JSON filename, and OepItems registration aligned
+- keep item id, JSON filename, and OrganEffectsItems registration aligned
 - if an effect feels inconsistent, test once with menu-close recompute and once with viewer-triggered recompute to separate event bugs from display bugs

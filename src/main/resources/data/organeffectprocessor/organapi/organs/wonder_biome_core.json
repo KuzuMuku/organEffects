@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_biome_core",
+  "item": "organeffects:wonder_biome_core",
   "valid_parts": ["organapi:head"],
   "size": 1,
   "tooltips": ["A sample organ that reacts to biome ids and biome tags."],

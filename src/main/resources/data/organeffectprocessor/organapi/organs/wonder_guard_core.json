@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_guard_core",
+  "item": "organeffects:wonder_guard_core",
   "valid_parts": ["organapi:chest"],
   "size": 1,
   "tooltips": ["A sample organ that reacts when you are hurt."],

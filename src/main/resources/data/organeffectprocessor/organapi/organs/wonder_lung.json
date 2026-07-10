@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_lung",
+  "item": "organeffects:wonder_lung",
   "valid_parts": ["organapi:chest"],
   "size": 1,
   "tooltips": ["A focused sample organ that grants water breathing from slot placement."],

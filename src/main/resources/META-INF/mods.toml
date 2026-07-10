@@ -18,7 +18,7 @@ license="MIT"
 # A list of mods - how many allowed here is determined by the individual mod loader
 [[mods]] #mandatory
 # The modid of the mod
-modId="organeffectprocessor" #mandatory
+modId="organeffects" #mandatory
 # The version number of the mod
 version="${mod_version}" #mandatory
 # A display name for the mod
@@ -47,7 +47,7 @@ Organ Effect Processor bridges organAPI and Minecraft's attribute/skill system.
 It reads organ JSON effects and computes player attribute bonuses and skill levels from installed organs.
 '''
 
-[[dependencies.organeffectprocessor]] #optional
+[[dependencies.organeffects]] #optional
     # the modid of the dependency
     modId="forge" #mandatory
     # Does this dependency have to exist - if not, ordering below must be specified
@@ -61,7 +61,7 @@ It reads organ JSON effects and computes player attribute bonuses and skill leve
     # Side this dependency is applied on - BOTH, CLIENT, or SERVER
     side="BOTH"
 # Here's another dependency
-[[dependencies.organeffectprocessor]]
+[[dependencies.organeffects]]
     modId="minecraft"
     mandatory=true
     # This version range declares a minimum of the current minecraft version up to but not including the next major version
@@ -69,7 +69,7 @@ It reads organ JSON effects and computes player attribute bonuses and skill leve
     ordering="NONE"
     side="BOTH"
 
-[[dependencies.organeffectprocessor]]
+[[dependencies.organeffects]]
     modId="organapi"
     mandatory=true
     versionRange="[1.0,)"

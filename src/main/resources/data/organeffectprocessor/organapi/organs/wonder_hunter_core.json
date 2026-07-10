@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_hunter_core",
+  "item": "organeffects:wonder_hunter_core",
   "valid_parts": ["organapi:left_arm", "organapi:right_arm"],
   "size": 1,
   "tooltips": ["A sample organ that reacts when you kill a mob."],

@@ -1,5 +1,5 @@
 {
-  "item": "organeffectprocessor:wonder_brain_v2",
+  "item": "organeffects:wonder_brain_v2",
   "valid_parts": ["organapi:head"],
   "size": 1,
   "tooltips": ["A focused sample organ that grants items from a token."],
@@ -15,7 +15,7 @@
       "events": [
         {
           "type": "use_item",
-          "item": "organeffectprocessor:effect_point_viewer",
+          "item": "organeffects:effect_point_viewer",
           "add_points": [
             {
               "type": "runtime",

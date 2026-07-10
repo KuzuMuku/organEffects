@@ -1,22 +1,22 @@
 # Organ Effect Processor
 
-Organ Effect Processor (OEP) is a Forge 1.20.1 addon built on top of the sibling `../organAPI` workspace. OrganAPI owns anatomy, body parts, organ storage, and menus; OEP interprets organ `effects[]` blocks and turns them into a layered point pool.
+Organ Effect Processor (OrganEffects) is a Forge 1.20.1 addon built on top of the sibling `../organAPI` workspace. OrganAPI owns anatomy, body parts, organ storage, and menus; OrganEffects interprets organ `effects[]` blocks and turns them into a layered point pool.
 
 ## Core model
 
-OEP keeps organ logic dependency-light by using points as the bridge between triggers and effects:
+OrganEffects keeps organ logic dependency-light by using points as the bridge between triggers and effects:
 
 - `conditions` + `grants` produce static points during recomputation.
 - `events` respond to runtime player actions and mutate runtime/source points.
 - `executions` read or consume points and produce visible effects.
-- Java extension APIs let compat submods add custom point producers/executors without adding optional dependencies to OEP itself.
+- Java extension APIs let compat submods add custom point producers/executors without adding optional dependencies to OrganEffects itself.
 
 Example point keys:
 
 - `attribute:minecraft:luck`
-- `skill:organeffectprocessor:wonder_sight`
-- `counter:organeffectprocessor:charge`
-- `runtime:organeffectprocessor:storm_insight_token`
+- `skill:organeffects:wonder_sight`
+- `counter:organeffects:charge`
+- `runtime:organeffects:storm_insight_token`
 
 ## Build
 
@@ -32,26 +32,26 @@ If the local OrganAPI dependency is stale, rebuild it first:
 cd ../organAPI && ./gradlew compileJava jar
 ```
 
-Then rebuild OEP.
+Then rebuild OrganEffects.
 
 ## Important directories
 
-- Java source: `src/main/java/cn/kuzuanpa/organeffectprocessor/`
-- Public API model: `src/main/java/cn/kuzuanpa/organeffectprocessor/api/`
-- Java extension API: `src/main/java/cn/kuzuanpa/organeffectprocessor/api/extension/`
-- Runtime effect flow: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/effect/`
-- Capability point storage: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/capability/`
-- Organ item registration: `src/main/java/cn/kuzuanpa/organeffectprocessor/common/registry/OepItems.java`
-- Organ JSON: `src/main/resources/data/organeffectprocessor/organapi/organs/`
+- Java source: `src/main/java/cn/kuzuanpa/organeffects/`
+- Public API model: `src/main/java/cn/kuzuanpa/organeffects/api/`
+- Java extension API: `src/main/java/cn/kuzuanpa/organeffects/api/extension/`
+- Runtime effect flow: `src/main/java/cn/kuzuanpa/organeffects/common/effect/`
+- Capability point storage: `src/main/java/cn/kuzuanpa/organeffects/common/capability/`
+- Organ item registration: `src/main/java/cn/kuzuanpa/organeffects/common/registry/OrganEffectsItems.java`
+- Organ JSON: `src/main/resources/data/organeffects/organapi/organs/`
 - Point config JSON: `src/main/resources/data/<namespace>/point_config/*.json`
 - Organ item placement tag: `src/main/resources/data/organapi/tags/items/organs.json`
-- Localizations: `src/main/resources/assets/organeffectprocessor/lang/en_us.json`
+- Localizations: `src/main/resources/assets/organeffects/lang/en_us.json`
 
 ## Runtime flow
 
 1. OrganAPI commits an organ state change.
 2. `ServerEventHandler` calls `EffectRecalculationService.recompute(...)`.
-3. OEP evaluates installed organ JSON effects and registered Java point producers.
+3. OrganEffects evaluates installed organ JSON effects and registered Java point producers.
 4. Results are written into `IEffectHolder` source layers.
 5. Attribute modifiers, skill availability, and runtime executors are updated.
 6. `EffectPointViewerItem` can force recompute and print point groups for debugging.
@@ -69,21 +69,21 @@ Use the extension API when JSON alone is not enough, especially for compat submo
 
 Key classes:
 
-- `OepPointApi` - direct point read/write access for compat mods
-- `OepExtensionApi`
+- `OrganEffectsPointApi` - direct point read/write access for compat mods
+- `OrganEffectsExtensionApi`
 - `PointProducer`
 - `ConditionHandler`
 - `PointExecutor`
-- `OepRuntimeEvent`
+- `OrganEffectsRuntimeEvent`
 - `SkillExecutor`
 
 Typical compat pattern:
 
 ```java
-OepExtensionApi.registerPointProducer(new CreateStressProducer());
-OepExtensionApi.registerConditionHandler("compatmod:charged_dimension", new CreateChargedDimensionCondition());
-OepExtensionApi.registerPointExecutor(new CreateChargeBurstExecutor());
-RuntimeEffectService.fireEvent(player, OepRuntimeEvent.builder("compatmod:reactor_exploded", player).build());
+OrganEffectsExtensionApi.registerPointProducer(new CreateStressProducer());
+OrganEffectsExtensionApi.registerConditionHandler("compatmod:charged_dimension", new CreateChargedDimensionCondition());
+OrganEffectsExtensionApi.registerPointExecutor(new CreateChargeBurstExecutor());
+RuntimeEffectService.fireEvent(player, OrganEffectsRuntimeEvent.builder("compatmod:reactor_exploded", player).build());
 SkillManager.registerSkill(...);
 SkillManager.registerSkillExecutor("compatmod:rotational_overdrive", (player, level) -> {
     // external-mod-aware behavior lives in the compat submod
@@ -91,11 +91,11 @@ SkillManager.registerSkillExecutor("compatmod:rotational_overdrive", (player, le
 });
 ```
 
-The main OEP mod should not import Create or other optional mod APIs. A compat submod should depend on OEP plus the external mod, inspect external state, then contribute/consume OEP points.
+The main OrganEffects mod should not import Create or other optional mod APIs. A compat submod should depend on OrganEffects plus the external mod, inspect external state, then contribute/consume OrganEffects points.
 
 ## Sample organs
 
-Current sample organs live under `src/main/resources/data/organeffectprocessor/organapi/organs/`.
+Current sample organs live under `src/main/resources/data/organeffects/organapi/organs/`.
 
 Representative focused samples now include:
 
@@ -123,11 +123,11 @@ Representative focused samples now include:
 
 ## Point Config
 
-OEP supports optional point-level config files under `data/<namespace>/point_config/*.json`.
+OrganEffects supports optional point-level config files under `data/<namespace>/point_config/*.json`.
 
 Current supported fields:
 
-- `point`: full point key such as `organ_stat:organeffectprocessor:muscular_strength`
+- `point`: full point key such as `organ_stat:organeffects:muscular_strength`
 - `display_name_key`: optional translation key used to override the default display-name lookup for this point
 - `sync_to_client`: whether this point should be included in the lightweight client sync cache
 
@@ -135,18 +135,18 @@ Example:
 
 ```json
 {
-  "point": "organ_stat:organeffectprocessor:muscular_strength",
-  "display_name_key": "point.organeffectprocessor.organ_stat.organeffectprocessor.muscular_strength",
+  "point": "organ_stat:organeffects:muscular_strength",
+  "display_name_key": "point.organeffects.organ_stat.organeffects.muscular_strength",
   "sync_to_client": true
 }
 ```
 
-If a point has no config file, OEP keeps its previous default behavior. If `display_name_key` is omitted, OEP keeps the existing default name resolution rules. Point config is intended as an extension point, so more fields can be added later without changing organ JSON structure.
+If a point has no config file, OrganEffects keeps its previous default behavior. If `display_name_key` is omitted, OrganEffects keeps the existing default name resolution rules. Point config is intended as an extension point, so more fields can be added later without changing organ JSON structure.
 
 ## Quick organ checklist
 
-1. Register an `OepOrganItem` in `OepItems`.
-2. Add `data/organeffectprocessor/organapi/organs/<organ>.json`.
+1. Register an `OrganEffectsOrganItem` in `OrganEffectsItems`.
+2. Add `data/organeffects/organapi/organs/<organ>.json`.
 3. Add the item ID to `data/organapi/tags/items/organs.json`.
 4. Add item/point/skill localization keys.
 5. If granting a skill, register skill metadata and a skill executor.
