@@ -1,6 +1,21 @@
+/*
+ * This class was created by <kuzuanpa>. It is distributed as
+ * part of the organEffects Mod. Get the Source Code in github:
+ * https://github.com/KuzuMuku/organEffects
+ *
+ * organEffects is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+
+ * organEffects is Open Source and distributed under the
+ * AGPLv3 License: https://www.gnu.org/licenses/agpl-3.0.txt
+ *
+ */
+
 package cn.kuzuanpa.organeffects.client.render;
 
-import cn.kuzuanpa.organeffects.OrganEffectProcessorMod;
+import cn.kuzuanpa.organeffects.OrganEffectsMod;
 import cn.kuzuanpa.organeffects.common.network.BeamEffectS2CPacket;
 import cn.kuzuanpa.organeffects.common.network.OrganEffectsNetwork;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -29,7 +44,7 @@ import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
-@Mod.EventBusSubscriber(modid = OrganEffectProcessorMod.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
+@Mod.EventBusSubscriber(modid = OrganEffectsMod.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class BeamEffectRenderer {
     private static final ResourceLocation GUARDIAN_BEAM_TEXTURE = ResourceLocation.withDefaultNamespace("textures/entity/guardian_beam.png");
     private static final RenderType GUARDIAN_BEAM_RENDER_TYPE = RenderType.entityCutoutNoCull(GUARDIAN_BEAM_TEXTURE);

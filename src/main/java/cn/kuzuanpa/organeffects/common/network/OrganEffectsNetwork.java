@@ -1,6 +1,21 @@
+/*
+ * This class was created by <kuzuanpa>. It is distributed as
+ * part of the organEffects Mod. Get the Source Code in github:
+ * https://github.com/KuzuMuku/organEffects
+ *
+ * organEffects is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+
+ * organEffects is Open Source and distributed under the
+ * AGPLv3 License: https://www.gnu.org/licenses/agpl-3.0.txt
+ *
+ */
+
 package cn.kuzuanpa.organeffects.common.network;
 
-import cn.kuzuanpa.organeffects.OrganEffectProcessorMod;
+import cn.kuzuanpa.organeffects.OrganEffectsMod;
 import cn.kuzuanpa.organeffects.common.skill.SkillManager;
 import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
@@ -14,7 +29,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 public final class OrganEffectsNetwork {
     private static final String PROTOCOL = "1";
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            ResourceLocation.fromNamespaceAndPath(OrganEffectProcessorMod.MOD_ID, "main"),
+            ResourceLocation.fromNamespaceAndPath(OrganEffectsMod.MOD_ID, "main"),
             () -> PROTOCOL,
             PROTOCOL::equals,
             PROTOCOL::equals

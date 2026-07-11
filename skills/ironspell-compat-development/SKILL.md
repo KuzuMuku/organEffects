@@ -5,7 +5,7 @@ description: Fast reference for writing OrganEffects organs against organIronSpe
 
 # organIronSpell compat development
 
-Use this when you want to write or review organ JSON that integrates Organ Effect Processor with Iron's Spellbooks through the `organIronSpell` compat addon.
+Use this when you want to write or review organ JSON that integrates Organ Effects with Iron's Spellbooks through the `organIronSpell` compat addon.
 
 ## Purpose
 

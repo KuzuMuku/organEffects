@@ -1,6 +1,6 @@
 ---
 name: oep-organ-authoring
-description: Author Organ Effect Processor organs in JSON using the built-in condition, event, and execution catalog, with config-driven variants and point-bridge patterns.
+description: Author Organ Effects organs in JSON using the built-in condition, event, and execution catalog, with config-driven variants and point-bridge patterns.
 ---
 
 # OrganEffects Organ Authoring

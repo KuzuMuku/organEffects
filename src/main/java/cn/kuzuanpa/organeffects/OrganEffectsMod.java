@@ -1,3 +1,18 @@
+/*
+ * This class was created by <kuzuanpa>. It is distributed as
+ * part of the organEffects Mod. Get the Source Code in github:
+ * https://github.com/KuzuMuku/organEffects
+ *
+ * organEffects is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+
+ * organEffects is Open Source and distributed under the
+ * AGPLv3 License: https://www.gnu.org/licenses/agpl-3.0.txt
+ *
+ */
+
 package cn.kuzuanpa.organeffects;
 
 import cn.kuzuanpa.organeffects.api.extension.OrganEffectsExtensionApi;
@@ -16,15 +31,14 @@ import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
-@Mod(OrganEffectProcessorMod.MOD_ID)
-public class OrganEffectProcessorMod {
+@Mod(OrganEffectsMod.MOD_ID)
+public class OrganEffectsMod {
     public static final String MOD_ID = "organeffects";
 
-    public OrganEffectProcessorMod(FMLJavaModLoadingContext context) {
+    public OrganEffectsMod(FMLJavaModLoadingContext context) {
         IEventBus modBus = context.getModEventBus();
         OrganEffectsItems.ITEMS.register(modBus);
         OrganEffectsEnchantments.ENCHANTMENTS.register(modBus);

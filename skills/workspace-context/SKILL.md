@@ -1,9 +1,9 @@
 ---
 name: workspace-context
-description: Quick map of the Organ Effect Processor workspace, key entrypoints, docs, and build flow.
+description: Quick map of the Organ Effects workspace, key entrypoints, docs, and build flow.
 ---
 
-# Organ Effect Processor workspace context
+# Organ Effects workspace context
 
 Use this when you need a fast mental map of the repository before editing, documenting, or building a compat submod.
 

@@ -1,9 +1,9 @@
 ---
 name: oep-onboarding
-description: Quickly recover the Organ Effect Processor workspace context: organ JSON effect parsing, point recomputation, capability/state, point viewer, active skill flow, networking, and build commands.
+description: Quickly recover the Organ Effects workspace context: organ JSON effect parsing, point recomputation, capability/state, point viewer, active skill flow, networking, and build commands.
 ---
 
-# Organ Effect Processor workspace onboarding
+# Organ Effects workspace onboarding
 
 Use this when a new agent needs to quickly understand this Forge 1.20.1 addon mod before editing. Stay inside this project directory and the `../organ*` directories; other directories are unrelated.
 

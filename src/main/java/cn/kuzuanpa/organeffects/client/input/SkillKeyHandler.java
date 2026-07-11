@@ -1,5 +1,21 @@
+/*
+ * This class was created by <kuzuanpa>. It is distributed as
+ * part of the organEffects Mod. Get the Source Code in github:
+ * https://github.com/KuzuMuku/organEffects
+ *
+ * organEffects is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+
+ * organEffects is Open Source and distributed under the
+ * AGPLv3 License: https://www.gnu.org/licenses/agpl-3.0.txt
+ *
+ */
+
 package cn.kuzuanpa.organeffects.client.input;
 
+import cn.kuzuanpa.organeffects.OrganEffectsMod;
 import com.mojang.blaze3d.systems.RenderSystem;
 import cn.kuzuanpa.organeffects.client.screen.SkillWheelScreen;
 import cn.kuzuanpa.organeffects.common.network.CastSelectedSkillC2SPacket;
@@ -13,7 +29,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-@Mod.EventBusSubscriber(value = Dist.CLIENT, modid = cn.kuzuanpa.organeffects.OrganEffectProcessorMod.MOD_ID)
+@Mod.EventBusSubscriber(value = Dist.CLIENT, modid = OrganEffectsMod.MOD_ID)
 public final class SkillKeyHandler {
     private static final int LONG_PRESS_TICKS = 10;
     private static boolean wasDown;

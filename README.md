@@ -1,6 +1,6 @@
-# Organ Effect Processor
+# Organ Effects
 
-Organ Effect Processor (OrganEffects) is a Forge 1.20.1 addon built on top of the sibling `../organAPI` workspace. OrganAPI owns anatomy, body parts, organ storage, and menus; OrganEffects interprets organ `effects[]` blocks and turns them into a layered point pool.
+Organ Effects (OrganEffects) is a Forge 1.20.1 addon built on top of the sibling `../organAPI` workspace. OrganAPI owns anatomy, body parts, organ storage, and menus; OrganEffects interprets organ `effects[]` blocks and turns them into a layered point pool.
 
 ## Core model
 

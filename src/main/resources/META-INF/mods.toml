@@ -22,7 +22,7 @@ modId="organeffects" #mandatory
 # The version number of the mod
 version="${mod_version}" #mandatory
 # A display name for the mod
-displayName="Organ Effect Processor" #mandatory
+displayName="Organ Effects" #mandatory
 # A URL to query for updates for this mod. See the JSON update specification https://docs.minecraftforge.net/en/latest/misc/updatechecker/
 #updateJSONURL="https://change.me.example.invalid/updates.json" #optional
 # A URL for the "homepage" for this mod, displayed in the mod UI
@@ -43,7 +43,7 @@ authors="kuzuanpa" #optional
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Organ Effect Processor bridges organAPI and Minecraft's attribute/skill system.
+Organ Effects bridges organAPI and Minecraft's attribute/skill system.
 It reads organ JSON effects and computes player attribute bonuses and skill levels from installed organs.
 '''
 
