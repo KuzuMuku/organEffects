@@ -1,0 +1,39 @@
+{
+  "item": "organeffects:wonder_conversion_core",
+  "valid_parts": ["organapi:chest"],
+  "size": 1,
+  "tooltips": [
+    "A sample organ that converts base organ stats into derived points.",
+    "Grants 4 cardiac output, then converts every 2 cardiac output into 1 max health."
+  ],
+  "tags": ["wonder", "sample", "derived_grant"],
+  "effects": [
+    {
+      "conditions": [
+        {
+          "type": "static"
+        }
+      ],
+      "grants": [
+        {
+          "type": "organ_stat",
+          "key": "cardiac_output",
+          "amount": 4
+        },
+        {
+          "type": "derived",
+          "amount": 1,
+          "config": {
+            "from_type": "organ_stat",
+            "from_id": "organeffects:cardiac_output",
+            "per": 2,
+            "target_type": "attribute",
+            "target_attribute": "minecraft:max_health"
+          }
+        }
+      ],
+      "events": [],
+      "executions": []
+    }
+  ]
+}

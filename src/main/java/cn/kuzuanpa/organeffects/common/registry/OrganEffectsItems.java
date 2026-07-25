@@ -60,6 +60,8 @@ public final class OrganEffectsItems {
             () -> new OrganEffectsOrganItem(new Item.Properties().stacksTo(1), "wonder_warp_core"));
     public static final RegistryObject<Item> WONDER_TAUNT_CORE = ITEMS.register("wonder_taunt_core",
             () -> new OrganEffectsOrganItem(new Item.Properties().stacksTo(1), "wonder_taunt_core"));
+    public static final RegistryObject<Item> WONDER_CONVERSION_CORE = ITEMS.register("wonder_conversion_core",
+            () -> new OrganEffectsOrganItem(new Item.Properties().stacksTo(1), "wonder_conversion_core"));
 
     private OrganEffectsItems() {}
 }

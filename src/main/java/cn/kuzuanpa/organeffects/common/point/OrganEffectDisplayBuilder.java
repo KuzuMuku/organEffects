@@ -57,6 +57,8 @@ public final class OrganEffectDisplayBuilder {
             int effectIndex = 0;
             for (EffectDefinition effect : OrganEffectData.INSTANCE.getEffectsForOrgan(definition.id())) {
                 appendViewerGrantEntries(entries, definition, position, effectIndex, effect.conditions(), effect.grants());
+                appendViewerDerivedGrantEntries(entries, definition, position, effectIndex, effect.conditions(),
+                        OrganEffectData.INSTANCE.getDerivedGrantRulesForEffect(definition.id(), effectIndex));
                 appendViewerEventEntries(entries, definition, position, effectIndex, effect.conditions(), effect.events());
                 appendViewerExecutionEntries(entries, definition, position, effectIndex, effect.conditions(), effect.executions());
                 effectIndex++;
@@ -84,10 +86,14 @@ public final class OrganEffectDisplayBuilder {
         }
 
         List<DisplayLine> effectDisplayLines = new ArrayList<>();
+        int effectIndex = 0;
         for (EffectDefinition effect : effects) {
             appendGrantLines(effectDisplayLines, effect.conditions(), effect.grants(), false);
+            appendDerivedGrantLines(effectDisplayLines, effect.conditions(),
+                    OrganEffectData.INSTANCE.getDerivedGrantRulesForEffect(definition.id(), effectIndex), false);
             appendEventLines(effectDisplayLines, effect.conditions(), effect.events());
             appendExecutionLines(effectDisplayLines, effect.conditions(), effect.executions());
+            effectIndex++;
         }
         if (effectDisplayLines.isEmpty()) {
             return allLines;
@@ -138,6 +144,19 @@ public final class OrganEffectDisplayBuilder {
             Component point = formatPointAmount(grant.type(), grant.id(), grant.amount());
             target.add(new DisplayLine("grant",
                     prefix.copy().append(Component.translatable("message.organeffects.effects.provides", point)),
+                    buildConditionHover(conditions)));
+        }
+    }
+
+    private static void appendDerivedGrantLines(List<DisplayLine> target, List<EffectDefinition.Condition> conditions,
+                                                List<OrganEffectData.DerivedGrantRule> rules, boolean includeConditionlessHeader) {
+        if (rules.isEmpty()) {
+            return;
+        }
+        MutableComponent prefix = describeConditionPrefix(conditions, includeConditionlessHeader);
+        for (OrganEffectData.DerivedGrantRule rule : rules) {
+            target.add(new DisplayLine("grant",
+                    prefix.copy().append(describeDerivedGrant(rule)),
                     buildConditionHover(conditions)));
         }
     }
@@ -206,6 +225,17 @@ public final class OrganEffectDisplayBuilder {
         }
     }
 
+    private static void appendViewerDerivedGrantEntries(List<ViewerEffectEntry> target, OrganDefinition definition, OrganPosition position, int effectIndex,
+                                                        List<EffectDefinition.Condition> conditions, List<OrganEffectData.DerivedGrantRule> rules) {
+        if (rules.isEmpty()) {
+            return;
+        }
+        for (OrganEffectData.DerivedGrantRule rule : rules) {
+            MutableComponent text = describeConditionPrefix(conditions, false).append(describeDerivedGrant(rule));
+            target.add(new ViewerEffectEntry("grant", text, null, buildViewerHover(definition, position, effectIndex, conditions, null, null)));
+        }
+    }
+
     private static void appendViewerEventEntries(List<ViewerEffectEntry> target, OrganDefinition definition, OrganPosition position, int effectIndex,
                                                  List<EffectDefinition.Condition> conditions, List<EffectDefinition.EventRule> events) {
         for (EffectDefinition.EventRule event : events) {
@@ -256,6 +286,15 @@ public final class OrganEffectDisplayBuilder {
         return Component.translatable("message.organeffects.effects.when_prefix", joinComponents(readableConditions))
                 .withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal(": ").withStyle(ChatFormatting.GRAY));
+    }
+
+    private static MutableComponent describeDerivedGrant(OrganEffectData.DerivedGrantRule rule) {
+        return Component.translatable(
+                "message.organeffects.effects.provides_per_points",
+                formatPointAmount(rule.targetType(), rule.targetId(), rule.amount()),
+                rule.per(),
+                EffectPointTextHelper.getDisplayName(rule.fromType() + ":" + rule.fromId())
+        );
     }
 
     private static List<Component> describeConditions(List<EffectDefinition.Condition> conditions) {
@@ -719,6 +758,7 @@ public final class OrganEffectDisplayBuilder {
         private final String kind;
         private final Component text;
         private final Set<String> hoverStrings = new LinkedHashSet<>();
+        private int occurrenceCount = 0;
         private int amountCount = 0;
         private String amountText;
 
@@ -728,6 +768,7 @@ public final class OrganEffectDisplayBuilder {
         }
 
         private void add(Component hover, String amountText) {
+            occurrenceCount++;
             if (hover != null && !hover.getString().isBlank()) {
                 hoverStrings.add(hover.getString());
             }
@@ -740,10 +781,17 @@ public final class OrganEffectDisplayBuilder {
         private MutableComponent renderText() {
             MutableComponent rendered = text.copy();
             if (amountText == null) {
+                if (occurrenceCount > 1) {
+                    return rendered.append(Component.literal(" x" + occurrenceCount).withStyle(ChatFormatting.GOLD));
+                }
                 return rendered;
             }
             if (amountCount <= 1) {
-                return rendered.append(Component.literal(" " + amountText).withStyle(ChatFormatting.GOLD));
+                rendered.append(Component.literal(" " + amountText).withStyle(ChatFormatting.GOLD));
+                if (occurrenceCount > 1) {
+                    rendered.append(Component.literal(" x" + occurrenceCount).withStyle(ChatFormatting.GOLD));
+                }
+                return rendered;
             }
             return rendered.append(Component.literal(" " + amountText + " x" + amountCount).withStyle(ChatFormatting.GOLD));
         }

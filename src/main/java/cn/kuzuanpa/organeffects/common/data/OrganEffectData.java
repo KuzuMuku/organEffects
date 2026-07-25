@@ -268,36 +268,56 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
             }
             JsonObject grantObj = grantElement.getAsJsonObject();
             String type = GsonHelper.getAsString(grantObj, "type");
-            String id = readPointId(grantObj, type, defaultNamespace);
             long amount = GsonHelper.getAsLong(grantObj, "amount", 0L);
-            DerivedGrantRule derivedRule = readDerivedGrantRule(grantObj, type, id, amount, defaultNamespace);
+            DerivedGrantRule derivedRule = readDerivedGrantRule(grantObj, amount, defaultNamespace);
             if (derivedRule != null) {
                 derivedRules.add(derivedRule);
                 continue;
             }
+            String id = readPointId(grantObj, type, defaultNamespace);
             grants.add(new EffectDefinition.Grant(type, id, amount));
         }
         return new GrantReadResult(grants, derivedRules);
     }
 
-    private static DerivedGrantRule readDerivedGrantRule(JsonObject grantObj, String type, String id, long amount, String defaultNamespace) {
-        JsonObject config = readConfigObject(grantObj).deepCopy();
-        String fromType = config.has("from_type") ? GsonHelper.getAsString(config, "from_type") : GsonHelper.getAsString(grantObj, "from_type", null);
-        Long per = config.has("per") ? GsonHelper.getAsLong(config, "per") : (grantObj.has("per") ? GsonHelper.getAsLong(grantObj, "per") : null);
-        if (fromType == null || per == null) {
+    private static DerivedGrantRule readDerivedGrantRule(JsonObject grantObj, long amount, String defaultNamespace) {
+        if (!"derived".equals(GsonHelper.getAsString(grantObj, "type"))) {
             return null;
+        }
+        JsonObject config = readConfigObject(grantObj).deepCopy();
+        String fromType = GsonHelper.getAsString(config, "from_type", null);
+        String targetType = GsonHelper.getAsString(config, "target_type", null);
+        Long per = config.has("per") ? GsonHelper.getAsLong(config, "per") : null;
+        if (fromType == null || targetType == null || per == null) {
+            throw new IllegalArgumentException("Derived grant requires config.from_type, config.target_type, and config.per");
         }
         if (per <= 0L) {
             throw new IllegalArgumentException("Derived grant per must be > 0");
         }
-        String rawFromId = config.has("from_id") ? GsonHelper.getAsString(config, "from_id") : GsonHelper.getAsString(grantObj, "from_id", null);
+        String rawFromId = GsonHelper.getAsString(config, "from_id", null);
         if (rawFromId == null || rawFromId.isBlank()) {
-            throw new IllegalArgumentException("Derived grant is missing from_id");
+            throw new IllegalArgumentException("Derived grant is missing config.from_id");
         }
-        String source = config.has("source") ? GsonHelper.getAsString(config, "source") : GsonHelper.getAsString(grantObj, "source", null);
+        String rawTargetId = readDerivedPointId(config, targetType);
+        if (rawTargetId == null || rawTargetId.isBlank()) {
+            throw new IllegalArgumentException("Derived grant is missing config target id");
+        }
+        String source = GsonHelper.getAsString(config, "source", null);
         boolean preferMinecraftNamespace = "attribute".equals(fromType);
         String fromId = normalizeId(rawFromId, defaultNamespace, preferMinecraftNamespace);
-        return new DerivedGrantRule(type, id, amount, fromType, fromId, per, source);
+        String targetId = normalizeId(rawTargetId, defaultNamespace, "attribute".equals(targetType));
+        return new DerivedGrantRule(targetType, targetId, amount, fromType, fromId, per, source);
+    }
+
+    private static String readDerivedPointId(JsonObject config, String type) {
+        if (config.has("target_id")) {
+            return GsonHelper.getAsString(config, "target_id");
+        }
+        return switch (type) {
+            case "attribute" -> GsonHelper.getAsString(config, "target_attribute", null);
+            case "skill" -> GsonHelper.getAsString(config, "target_skill_name", null);
+            default -> GsonHelper.getAsString(config, "target_key", null);
+        };
     }
 
     public record DerivedGrantRule(
