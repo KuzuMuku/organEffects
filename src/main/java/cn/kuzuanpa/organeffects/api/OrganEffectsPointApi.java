@@ -46,6 +46,14 @@ public final class OrganEffectsPointApi {
         return holder.getEffectPoints().getOrDefault(pointKey, 0L);
     }
 
+    public static Map<String, Long> getClientSyncedPoints(LivingEntity entity) {
+        return cn.kuzuanpa.organeffects.common.effect.OrganStatService.getClientSyncedPoints(entity);
+    }
+
+    public static long getClientSyncedPoint(LivingEntity entity, String pointKey) {
+        return cn.kuzuanpa.organeffects.common.effect.OrganStatService.getClientSyncedPoint(entity, pointKey);
+    }
+
     public static long addSourcePoint(LivingEntity entity, String sourceTag, String pointKey, long amount) {
         IEffectHolder holder = getHolder(entity);
         if (holder == null || !isServerSide(entity) || amount == 0L || pointKey == null || pointKey.isBlank()) {

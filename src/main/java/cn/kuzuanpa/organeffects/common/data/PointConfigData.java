@@ -22,6 +22,7 @@ import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import java.io.Reader;
 import java.util.HashMap;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -66,7 +67,22 @@ public final class PointConfigData extends SimplePreparableReloadListener<Map<St
                 }
                 Boolean syncToClient = object.has("sync_to_client") ? GsonHelper.getAsBoolean(object, "sync_to_client") : null;
                 String displayNameKey = object.has("display_name_key") ? GsonHelper.getAsString(object, "display_name_key") : null;
-                result.put(pointKey, new PointConfig(syncToClient, displayNameKey));
+                int priority = object.has("priority") ? GsonHelper.getAsInt(object, "priority") : 0;
+                List<String> damageTypes = readDamageTypes(object);
+                boolean damageTypeWhitelist = GsonHelper.getAsBoolean(object, "damage_type_whitelist", false);
+                String overflowMode = GsonHelper.getAsString(object, "overflow_mode", "spill");
+                String onHitRuntime = GsonHelper.getAsString(object, "on_hit_runtime", "");
+                String onBreakRuntime = GsonHelper.getAsString(object, "on_break_runtime", "");
+                result.put(pointKey, new PointConfig(
+                        syncToClient,
+                        displayNameKey,
+                        priority,
+                        damageTypes,
+                        damageTypeWhitelist,
+                        overflowMode,
+                        onHitRuntime,
+                        onBreakRuntime
+                ));
             } catch (Exception exception) {
                 LOGGER.warn("Failed to load point config from {}: {}", entry.getKey(), exception.getMessage());
             }
@@ -101,6 +117,38 @@ public final class PointConfigData extends SimplePreparableReloadListener<Map<St
         return synced;
     }
 
-    public record PointConfig(Boolean syncToClient, String displayNameKey) {
+    private static List<String> readDamageTypes(JsonObject object) {
+        if (!object.has("damage_types") || !object.get("damage_types").isJsonArray()) {
+            return List.of();
+        }
+        List<String> result = new java.util.ArrayList<>();
+        for (JsonElement element : GsonHelper.getAsJsonArray(object, "damage_types")) {
+            if (!element.isJsonPrimitive()) {
+                continue;
+            }
+            String value = element.getAsString();
+            if (value != null && !value.isBlank()) {
+                result.add(value);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    public record PointConfig(
+            Boolean syncToClient,
+            String displayNameKey,
+            int priority,
+            List<String> damageTypes,
+            boolean damageTypeWhitelist,
+            String overflowMode,
+            String onHitRuntime,
+            String onBreakRuntime
+    ) {
+        public PointConfig {
+            damageTypes = damageTypes == null ? List.of() : List.copyOf(damageTypes);
+            overflowMode = overflowMode == null || overflowMode.isBlank() ? "spill" : overflowMode;
+            onHitRuntime = onHitRuntime == null ? "" : onHitRuntime;
+            onBreakRuntime = onBreakRuntime == null ? "" : onBreakRuntime;
+        }
     }
 }

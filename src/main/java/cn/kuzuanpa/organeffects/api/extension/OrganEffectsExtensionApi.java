@@ -17,6 +17,7 @@ package cn.kuzuanpa.organeffects.api.extension;
 
 import cn.kuzuanpa.organeffects.api.EffectDefinition;
 import cn.kuzuanpa.organeffects.common.debug.OrganEffectsDebug;
+import cn.kuzuanpa.organeffects.common.effect.DerivedGrantPointProducer;
 import cn.kuzuanpa.organeffects.common.effect.EffectRecalculationService;
 import cn.kuzuanpa.organeffects.common.effect.RuntimeEffectService;
 import cn.kuzuanpa.organeffects.common.effect.RuntimePointExecutor;
@@ -90,7 +91,15 @@ public final class OrganEffectsExtensionApi {
     }
 
     public static Collection<PointProducer> getPointProducers() {
-        return List.copyOf(POINT_PRODUCERS.values());
+        return POINT_PRODUCERS.values().stream()
+                .sorted((left, right) -> {
+                    int priorityCompare = Integer.compare(left.getPriority(), right.getPriority());
+                    if (priorityCompare != 0) {
+                        return priorityCompare;
+                    }
+                    return left.id().compareTo(right.id());
+                })
+                .toList();
     }
 
     public static Collection<RecomputeCallback> getRecomputeCallbacks() {
@@ -136,6 +145,7 @@ public final class OrganEffectsExtensionApi {
     public static void registerBuiltins() {
         registerBuiltinConditions();
         registerBuiltinDisplays();
+        registerPointProducer(new DerivedGrantPointProducer());
         registerPointExecutor(new GrantItemsExecutor());
         registerPointExecutor(new ApplyMobEffectExecutor());
         registerPointExecutor(new HealExecutor());
@@ -441,41 +451,47 @@ public final class OrganEffectsExtensionApi {
             return value.equals(dimensionTypeId);
         });
         registerConditionHandler("time", (context, condition) -> {
-            if (condition.time() != null) {
-                return switch (condition.time()) {
+            String mode = condition.configString("mode");
+            Long min = condition.configLong("min");
+            Long max = condition.configLong("max");
+            if (mode != null) {
+                return switch (mode) {
                     case "day" -> context.evaluationContext().entity().level().isDay();
                     case "night" -> !context.evaluationContext().entity().level().isDay();
                     default -> false;
                 };
             }
             long timeOfDay = Math.floorMod(context.evaluationContext().entity().level().getDayTime(), EffectRecalculationService.dayTicks());
-            if (condition.min() != null || condition.max() != null) {
-                long min = condition.min() != null ? condition.min() : 0L;
-                long max = condition.max() != null ? condition.max() : EffectRecalculationService.dayTicks() - 1L;
-                if (min <= max) {
-                    return timeOfDay >= min && timeOfDay <= max;
+            if (min != null || max != null) {
+                long minValue = min != null ? min : 0L;
+                long maxValue = max != null ? max : EffectRecalculationService.dayTicks() - 1L;
+                if (minValue <= maxValue) {
+                    return timeOfDay >= minValue && timeOfDay <= maxValue;
                 }
-                return timeOfDay >= min || timeOfDay <= max;
+                return timeOfDay >= minValue || timeOfDay <= maxValue;
             }
-            return EffectRecalculationService.compareLong(timeOfDay, condition.operator(), condition.value());
+            return EffectRecalculationService.compareLong(timeOfDay, condition.configString("op"), condition.configLong("value"));
         });
         registerConditionHandler("has_organ", (context, condition) -> {
-            if (condition.scope() == null || condition.organ() == null) {
+            String scope = condition.configString("scope");
+            String organValue = condition.configString("organ");
+            if (scope == null || organValue == null) {
                 return false;
             }
-            ResourceLocation organId = ResourceLocation.tryParse(condition.organ());
+            ResourceLocation organId = ResourceLocation.tryParse(organValue);
             if (organId == null) {
                 return false;
             }
-            return switch (condition.scope()) {
+            return switch (scope) {
                 case "whole_body" -> context.evaluationContext().organCount(organId) > 0;
                 case "body_part" -> {
-                    ResourceLocation bodyPartId = ResourceLocation.tryParse(condition.bodyPart());
+                    ResourceLocation bodyPartId = ResourceLocation.tryParse(condition.configString("body_part"));
                     yield bodyPartId != null && context.evaluationContext().hasOrganInBodyPart(bodyPartId, organId);
                 }
                 case "exact_position" -> {
-                    ResourceLocation bodyPartId = condition.bodyPart() != null ? ResourceLocation.tryParse(condition.bodyPart()) : context.position().bodyPartId();
-                    Integer slot = condition.slot();
+                    String bodyPartValue = condition.configString("body_part");
+                    ResourceLocation bodyPartId = bodyPartValue != null ? ResourceLocation.tryParse(bodyPartValue) : context.position().bodyPartId();
+                    Integer slot = condition.configLong("slot") != null ? condition.configLong("slot").intValue() : null;
                     yield bodyPartId != null && slot != null && organId.equals(context.evaluationContext().organAt(bodyPartId, slot));
                 }
                 case "symmetric_position" -> context.evaluationContext().symmetricBodyPart(context.position().bodyPartId())
@@ -486,52 +502,57 @@ public final class OrganEffectsExtensionApi {
         });
         registerConditionHandler("biome", (context, condition) -> {
             net.minecraft.core.Holder<Biome> biomeHolder = context.evaluationContext().biome();
-            if (condition.biome() != null) {
-                ResourceLocation biomeId = ResourceLocation.tryParse(condition.biome());
+            String biomeValue = firstConditionConfig(condition, "value_id", "value");
+            String biomeTag = firstConditionConfig(condition, "biome_tag", "tag");
+            if (biomeValue != null) {
+                ResourceLocation biomeId = ResourceLocation.tryParse(biomeValue);
                 if (biomeId == null || !biomeHolder.is(ResourceKey.create(net.minecraft.core.registries.Registries.BIOME, biomeId))) {
                     return false;
                 }
             }
-            if (condition.biomeTag() != null) {
-                ResourceLocation biomeTagId = ResourceLocation.tryParse(condition.biomeTag());
+            if (biomeTag != null) {
+                ResourceLocation biomeTagId = ResourceLocation.tryParse(biomeTag);
                 if (biomeTagId == null || !biomeHolder.is(TagKey.create(net.minecraft.core.registries.Registries.BIOME, biomeTagId))) {
                     return false;
                 }
             }
-            return condition.biome() != null || condition.biomeTag() != null;
+            return biomeValue != null || biomeTag != null;
         });
         registerConditionHandler("dimid", (context, condition) -> {
-            if (condition.dimension() == null) {
+            String dimensionValue = firstConditionConfig(condition, "value_id", "value");
+            if (dimensionValue == null) {
                 return false;
             }
             ResourceLocation dimensionId = context.evaluationContext().entity().level().dimension().location();
-            return condition.dimension().equals(dimensionId.toString());
+            return dimensionValue.equals(dimensionId.toString());
         });
         registerConditionHandler("lightlevel", (context, condition) -> {
-            if (condition.value() == null || condition.operator() == null) {
+            if (condition.configLong("value") == null || condition.configString("op") == null) {
                 return false;
             }
             long lightLevel = context.evaluationContext().entity().level().getMaxLocalRawBrightness(context.evaluationContext().blockPos());
-            return EffectRecalculationService.compareLong(lightLevel, condition.operator(), condition.value());
+            return EffectRecalculationService.compareLong(lightLevel, condition.configString("op"), condition.configLong("value"));
         });
         registerConditionHandler("stepon", (context, condition) -> {
             BlockState blockState = context.evaluationContext().steppedOnBlock();
             if (blockState == null) {
                 return false;
             }
-            if (condition.block() != null) {
+            String blockValue = condition.configString("block");
+            String blockTag = condition.configString("block_tag");
+            if (blockValue != null) {
                 ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(blockState.getBlock());
-                if (blockId == null || !condition.block().equals(blockId.toString())) {
+                if (blockId == null || !blockValue.equals(blockId.toString())) {
                     return false;
                 }
             }
-            if (condition.blockTag() != null) {
-                ResourceLocation blockTagId = ResourceLocation.tryParse(condition.blockTag());
+            if (blockTag != null) {
+                ResourceLocation blockTagId = ResourceLocation.tryParse(blockTag);
                 if (blockTagId == null || !blockState.is(TagKey.create(net.minecraft.core.registries.Registries.BLOCK, blockTagId))) {
                     return false;
                 }
             }
-            return condition.block() != null || condition.blockTag() != null;
+            return blockValue != null || blockTag != null;
         });
         registerEventFilter("damage_type", (eventRule, event, key, value) -> {
             String damageType = event.extraString("damage_type");
@@ -1252,6 +1273,16 @@ public final class OrganEffectsExtensionApi {
                 action.chance(),
                 action.extra()
         );
+    }
+
+    private static String firstConditionConfig(EffectDefinition.Condition condition, String... keys) {
+        for (String key : keys) {
+            String value = condition.configString(key);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static java.util.List<net.minecraft.world.entity.LivingEntity> findNearbyLivingTargets(Player player, double radius) {

@@ -75,7 +75,7 @@ OrganEffects 读取的入口是每个器官文件中的 `effects[]`。
 
 ### 展示控制
 
-`events[]` 和 `executions[]` 现在都支持下面两个可选字段，它们只影响 tooltip 和 `effect_point_viewer` 的展示，不影响实际触发与执行：
+`conditions[]` 支持 `custom_display_key`；`events[]` 和 `executions[]` 支持下面两个可选字段。它们都只影响 tooltip 和 `effect_point_viewer` 的展示，不影响实际触发与执行：
 
 - `hidden: true`
 - `custom_display_key: "your.translation.key"`
@@ -85,7 +85,7 @@ OrganEffects 读取的入口是每个器官文件中的 `effects[]`。
 - `hidden: true` 会只隐藏当前这一条 event 或 execution 的展示
 - `custom_display_key` 会用该语言 key 替换默认自动生成的描述
 - 两者同时存在时，`hidden` 优先
-- 这两个字段不会连带隐藏同一个 `effect` 里的其他 grants / events / executions
+- 这两个字段不会连带隐藏同一个 `effect` 里的其他 grants / conditions / events / executions
 
 示例：
 

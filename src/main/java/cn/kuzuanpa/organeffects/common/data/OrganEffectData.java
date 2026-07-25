@@ -50,7 +50,8 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
     private static final Gson GSON = new GsonBuilder().create();
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Set<String> CONDITION_KEYS = Set.of(
-            "type", "config", "op", "value", "min", "max", "edge", "mode", "scope", "body_part", "slot", "organ", "biome_tag", "tag", "block", "block_tag"
+            "type", "config", "op", "value", "min", "max", "edge", "mode", "scope", "body_part", "slot", "organ", "biome_tag", "tag", "block", "block_tag",
+            "custom_display_key"
     );
     private static final Set<String> EVENT_RULE_KEYS = Set.of(
             "type", "config", "distance", "source", "item", "item_tag", "block", "block_tag", "food_only", "add_points", "consume_points", "actions",
@@ -62,6 +63,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
             "chance", "hidden", "custom_display_key"
     );
     private Map<ResourceLocation, List<EffectDefinition>> organEffects = new HashMap<>();
+    private Map<ResourceLocation, List<List<DerivedGrantRule>>> derivedGrantRules = new HashMap<>();
 
     private OrganEffectData() {
     }
@@ -69,6 +71,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
     @Override
     protected Map<ResourceLocation, List<EffectDefinition>> prepare(ResourceManager resourceManager, ProfilerFiller profiler) {
         Map<ResourceLocation, List<EffectDefinition>> result = new HashMap<>();
+        Map<ResourceLocation, List<List<DerivedGrantRule>>> derivedRulesResult = new HashMap<>();
         Map<ResourceLocation, Resource> resources = resourceManager.listResources(DIRECTORY, path -> path.getPath().endsWith(".json"));
 
         for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
@@ -85,6 +88,7 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
 
                 JsonArray effects = GsonHelper.getAsJsonArray(obj, "effects");
                 List<EffectDefinition> definitions = new ArrayList<>();
+                List<List<DerivedGrantRule>> effectDerivedRules = new ArrayList<>();
                 for (int index = 0; index < effects.size(); index++) {
                     JsonElement effectElement = effects.get(index);
                     if (!effectElement.isJsonObject()) {
@@ -92,7 +96,9 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                         continue;
                     }
                     try {
-                        definitions.add(readEffect(effectElement.getAsJsonObject(), entry.getKey(), index));
+                        LoadedEffect loadedEffect = readEffect(effectElement.getAsJsonObject(), entry.getKey(), index);
+                        definitions.add(loadedEffect.definition());
+                        effectDerivedRules.add(loadedEffect.derivedGrantRules());
                     } catch (Exception e) {
                         LOGGER.warn("Skipping malformed effect entry {} in {}: {}", index, entry.getKey(), e.getMessage());
                     }
@@ -100,17 +106,23 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 if (!definitions.isEmpty()) {
                     ResourceLocation definitionId = toDefinitionId(entry.getKey());
                     result.put(definitionId, definitions);
+                    derivedRulesResult.put(definitionId, effectDerivedRules);
                 }
             } catch (Exception e) {
                 LOGGER.warn("Failed to load organ effect data from {}: {}", entry.getKey(), e.getMessage());
             }
         }
+        preparedDerivedGrantRules = derivedRulesResult;
         return result;
     }
+
+    private Map<ResourceLocation, List<List<DerivedGrantRule>>> preparedDerivedGrantRules = Map.of();
 
     @Override
     protected void apply(Map<ResourceLocation, List<EffectDefinition>> definitions, ResourceManager resourceManager, ProfilerFiller profiler) {
         organEffects = new HashMap<>(definitions);
+        derivedGrantRules = new HashMap<>(preparedDerivedGrantRules);
+        preparedDerivedGrantRules = Map.of();
     }
 
     public List<EffectDefinition> getEffectsForOrgan(ResourceLocation organId) {
@@ -119,6 +131,14 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
 
     public Map<ResourceLocation, List<EffectDefinition>> getLoadedOrgans() {
         return organEffects;
+    }
+
+    public List<DerivedGrantRule> getDerivedGrantRulesForEffect(ResourceLocation organId, int effectIndex) {
+        List<List<DerivedGrantRule>> byEffect = derivedGrantRules.getOrDefault(organId, List.of());
+        if (effectIndex < 0 || effectIndex >= byEffect.size()) {
+            return List.of();
+        }
+        return byEffect.get(effectIndex);
     }
 
     private static ResourceLocation toDefinitionId(ResourceLocation fileId) {
@@ -133,12 +153,12 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         return ResourceLocation.fromNamespaceAndPath(fileId.getNamespace(), path);
     }
 
-    private static EffectDefinition readEffect(JsonObject effectObj, ResourceLocation fileId, int effectIndex) {
+    private static LoadedEffect readEffect(JsonObject effectObj, ResourceLocation fileId, int effectIndex) {
         List<EffectDefinition.Condition> conditions = readConditions(effectObj, fileId, effectIndex);
-        List<EffectDefinition.Grant> grants = readGrants(effectObj, fileId.getNamespace());
+        GrantReadResult grantResult = readGrants(effectObj, fileId.getNamespace());
         List<EffectDefinition.EventRule> events = readEvents(effectObj, fileId, effectIndex, fileId.getNamespace());
         List<EffectDefinition.BonusAction> executions = readExecutions(effectObj, fileId.getNamespace());
-        return new EffectDefinition(conditions, grants, events, executions);
+        return new LoadedEffect(new EffectDefinition(conditions, grantResult.grants(), events, executions), grantResult.derivedGrantRules());
     }
 
     private static List<EffectDefinition.Condition> readConditions(JsonObject effectObj, ResourceLocation fileId, int effectIndex) {
@@ -160,204 +180,71 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
 
     private static EffectDefinition.Condition readConditionObject(JsonObject conditionObj, ResourceLocation fileId, int effectIndex, int conditionIndex) {
         String type = GsonHelper.getAsString(conditionObj, "type");
-        JsonObject config = readConfigObject(conditionObj);
+        JsonObject config = readConditionConfig(conditionObj, fileId.getNamespace());
         JsonObject extra = collectExtra(conditionObj, CONDITION_KEYS);
         try {
-            return switch (type) {
-                case "static" -> new EffectDefinition.Condition("static", config, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, extra);
-                case "slot_index" -> new EffectDefinition.Condition(
-                        "slot_index",
-                        config,
-                        readOperator(conditionObj),
-                        GsonHelper.getAsLong(conditionObj, "value"),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        extra
-                );
-                case "distance_to_edge" -> new EffectDefinition.Condition(
-                        "distance_to_edge",
-                        config,
-                        readOperator(conditionObj),
-                        GsonHelper.getAsLong(conditionObj, "value"),
-                        null,
-                        null,
-                        GsonHelper.getAsString(conditionObj, "edge"),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        extra
-                );
-                case "weather" -> new EffectDefinition.Condition(
-                        "weather",
-                        config,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        GsonHelper.getAsString(conditionObj, "value"),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        extra
-                );
-                case "time" -> new EffectDefinition.Condition(
-                        "time",
-                        config,
-                        conditionObj.has("op") ? GsonHelper.getAsString(conditionObj, "op") : null,
-                        conditionObj.has("value") ? GsonHelper.getAsLong(conditionObj, "value") : null,
-                        conditionObj.has("min") ? GsonHelper.getAsLong(conditionObj, "min") : null,
-                        conditionObj.has("max") ? GsonHelper.getAsLong(conditionObj, "max") : null,
-                        null,
-                        null,
-                        conditionObj.has("mode") ? GsonHelper.getAsString(conditionObj, "mode") : null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        extra
-                );
-                case "has_organ" -> new EffectDefinition.Condition(
-                        "has_organ",
-                        config,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        GsonHelper.getAsString(conditionObj, "scope"),
-                        GsonHelper.getAsString(conditionObj, "body_part", null),
-                        conditionObj.has("slot") ? GsonHelper.getAsInt(conditionObj, "slot") : null,
-                        normalizeId(GsonHelper.getAsString(conditionObj, "organ"), fileId.getNamespace(), false),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        extra
-                );
-                case "biome" -> new EffectDefinition.Condition(
-                        "biome",
-                        config,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        conditionObj.has("value") ? normalizeId(GsonHelper.getAsString(conditionObj, "value"), fileId.getNamespace(), false) : null,
-                        readBiomeTag(conditionObj, fileId.getNamespace()),
-                        null,
-                        null,
-                        null,
-                        extra
-                );
-                case "dimid" -> new EffectDefinition.Condition(
-                        "dimid",
-                        config,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        normalizeId(GsonHelper.getAsString(conditionObj, "value"), fileId.getNamespace(), false),
-                        null,
-                        null,
-                        extra
-                );
-                case "lightlevel" -> new EffectDefinition.Condition(
-                        "lightlevel",
-                        config,
-                        readOperator(conditionObj),
-                        GsonHelper.getAsLong(conditionObj, "value"),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        extra
-                );
-                case "stepon" -> new EffectDefinition.Condition(
-                        "stepon",
-                        config,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        conditionObj.has("block") ? normalizeId(GsonHelper.getAsString(conditionObj, "block"), fileId.getNamespace(), false) : null,
-                        GsonHelper.getAsString(conditionObj, "block_tag", null),
-                        extra
-                );
-                default -> new EffectDefinition.Condition(type, config, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, extra);
-            };
+            return new EffectDefinition.Condition(type, config, extra);
         } catch (Exception e) {
             throw new IllegalArgumentException("Condition " + conditionIndex + " of effect " + effectIndex + " in " + fileId + " is invalid: " + e.getMessage(), e);
+        }
+    }
+
+    private static JsonObject readConditionConfig(JsonObject conditionObj, String defaultNamespace) {
+        JsonObject config = readConfigObject(conditionObj).deepCopy();
+        copyString(conditionObj, config, "op");
+        copyLong(conditionObj, config, "value");
+        copyLong(conditionObj, config, "min");
+        copyLong(conditionObj, config, "max");
+        copyString(conditionObj, config, "edge");
+        copyString(conditionObj, config, "mode");
+        copyString(conditionObj, config, "scope");
+        copyString(conditionObj, config, "body_part");
+        copyInt(conditionObj, config, "slot");
+        copyString(conditionObj, config, "custom_display_key");
+
+        if (conditionObj.has("organ") && !config.has("organ")) {
+            config.addProperty("organ", normalizeId(GsonHelper.getAsString(conditionObj, "organ"), defaultNamespace, false));
+        }
+        if (conditionObj.has("value") && !config.has("value_id") && shouldNormalizeValueId(GsonHelper.getAsString(conditionObj, "type"))) {
+            config.addProperty("value_id", normalizeId(GsonHelper.getAsString(conditionObj, "value"), defaultNamespace, false));
+        }
+        if (conditionObj.has("biome_tag") && !config.has("biome_tag")) {
+            config.addProperty("biome_tag", normalizeId(GsonHelper.getAsString(conditionObj, "biome_tag"), defaultNamespace, false));
+        }
+        if (conditionObj.has("tag") && !config.has("biome_tag")) {
+            config.addProperty("biome_tag", normalizeId(GsonHelper.getAsString(conditionObj, "tag"), defaultNamespace, false));
+        }
+        if (conditionObj.has("block") && !config.has("block")) {
+            config.addProperty("block", normalizeId(GsonHelper.getAsString(conditionObj, "block"), defaultNamespace, false));
+        }
+        if (conditionObj.has("block_tag") && !config.has("block_tag")) {
+            config.addProperty("block_tag", GsonHelper.getAsString(conditionObj, "block_tag"));
+        }
+        if (conditionObj.has("value") && !config.has("weather") && "weather".equals(GsonHelper.getAsString(conditionObj, "type"))) {
+            config.addProperty("weather", GsonHelper.getAsString(conditionObj, "value"));
+        }
+        return config;
+    }
+
+    private static boolean shouldNormalizeValueId(String type) {
+        return "biome".equals(type) || "dimid".equals(type);
+    }
+
+    private static void copyString(JsonObject source, JsonObject target, String key) {
+        if (source.has(key) && !target.has(key)) {
+            target.addProperty(key, GsonHelper.getAsString(source, key));
+        }
+    }
+
+    private static void copyLong(JsonObject source, JsonObject target, String key) {
+        if (source.has(key) && !target.has(key)) {
+            target.addProperty(key, GsonHelper.getAsLong(source, key));
+        }
+    }
+
+    private static void copyInt(JsonObject source, JsonObject target, String key) {
+        if (source.has(key) && !target.has(key)) {
+            target.addProperty(key, GsonHelper.getAsInt(source, key));
         }
     }
 
@@ -368,26 +255,13 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
         return GsonHelper.getAsJsonObject(source, "config");
     }
 
-    private static String readBiomeTag(JsonObject conditionObj, String defaultNamespace) {
-        if (conditionObj.has("biome_tag")) {
-            return normalizeId(GsonHelper.getAsString(conditionObj, "biome_tag"), defaultNamespace, false);
-        }
-        if (conditionObj.has("tag")) {
-            return normalizeId(GsonHelper.getAsString(conditionObj, "tag"), defaultNamespace, false);
-        }
-        return null;
-    }
-
-    private static String readOperator(JsonObject conditionObj) {
-        return GsonHelper.getAsString(conditionObj, "op");
-    }
-
-    private static List<EffectDefinition.Grant> readGrants(JsonObject effectObj, String defaultNamespace) {
+    private static GrantReadResult readGrants(JsonObject effectObj, String defaultNamespace) {
         if (!effectObj.has("grants")) {
-            return List.of();
+            return new GrantReadResult(List.of(), List.of());
         }
         JsonArray grantsArray = GsonHelper.getAsJsonArray(effectObj, "grants");
         List<EffectDefinition.Grant> grants = new ArrayList<>();
+        List<DerivedGrantRule> derivedRules = new ArrayList<>();
         for (JsonElement grantElement : grantsArray) {
             if (!grantElement.isJsonObject()) {
                 continue;
@@ -396,9 +270,57 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
             String type = GsonHelper.getAsString(grantObj, "type");
             String id = readPointId(grantObj, type, defaultNamespace);
             long amount = GsonHelper.getAsLong(grantObj, "amount", 0L);
+            DerivedGrantRule derivedRule = readDerivedGrantRule(grantObj, type, id, amount, defaultNamespace);
+            if (derivedRule != null) {
+                derivedRules.add(derivedRule);
+                continue;
+            }
             grants.add(new EffectDefinition.Grant(type, id, amount));
         }
-        return grants;
+        return new GrantReadResult(grants, derivedRules);
+    }
+
+    private static DerivedGrantRule readDerivedGrantRule(JsonObject grantObj, String type, String id, long amount, String defaultNamespace) {
+        JsonObject config = readConfigObject(grantObj).deepCopy();
+        String fromType = config.has("from_type") ? GsonHelper.getAsString(config, "from_type") : GsonHelper.getAsString(grantObj, "from_type", null);
+        Long per = config.has("per") ? GsonHelper.getAsLong(config, "per") : (grantObj.has("per") ? GsonHelper.getAsLong(grantObj, "per") : null);
+        if (fromType == null || per == null) {
+            return null;
+        }
+        if (per <= 0L) {
+            throw new IllegalArgumentException("Derived grant per must be > 0");
+        }
+        String rawFromId = config.has("from_id") ? GsonHelper.getAsString(config, "from_id") : GsonHelper.getAsString(grantObj, "from_id", null);
+        if (rawFromId == null || rawFromId.isBlank()) {
+            throw new IllegalArgumentException("Derived grant is missing from_id");
+        }
+        String source = config.has("source") ? GsonHelper.getAsString(config, "source") : GsonHelper.getAsString(grantObj, "source", null);
+        boolean preferMinecraftNamespace = "attribute".equals(fromType);
+        String fromId = normalizeId(rawFromId, defaultNamespace, preferMinecraftNamespace);
+        return new DerivedGrantRule(type, id, amount, fromType, fromId, per, source);
+    }
+
+    public record DerivedGrantRule(
+            String targetType,
+            String targetId,
+            long amount,
+            String fromType,
+            String fromId,
+            long per,
+            String source
+    ) {
+    }
+
+    private record GrantReadResult(
+            List<EffectDefinition.Grant> grants,
+            List<DerivedGrantRule> derivedGrantRules
+    ) {
+    }
+
+    private record LoadedEffect(
+            EffectDefinition definition,
+            List<DerivedGrantRule> derivedGrantRules
+    ) {
     }
 
     private static List<EffectDefinition.EventRule> readEvents(JsonObject effectObj, ResourceLocation fileId, int effectIndex, String defaultNamespace) {

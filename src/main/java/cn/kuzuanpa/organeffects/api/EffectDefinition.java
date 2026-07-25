@@ -35,22 +35,6 @@ public record EffectDefinition(
     public record Condition(
             String type,
             JsonObject config,
-            String operator,
-            Long value,
-            Long min,
-            Long max,
-            String edge,
-            String weather,
-            String time,
-            String scope,
-            String bodyPart,
-            Integer slot,
-            String organ,
-            String biome,
-            String biomeTag,
-            String dimension,
-            String block,
-            String blockTag,
             JsonObject extra
     ) {
         public Condition {

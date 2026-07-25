@@ -21,6 +21,10 @@ import net.minecraft.world.entity.Entity;
 public interface PointProducer {
     String id();
 
+    default int getPriority() {
+        return 1;
+    }
+
     void producePoints(PointProductionContext context, MutablePointSink sink);
 
     record PointProductionContext(Entity entity, EffectRecalculationService.EvaluationContext evaluationContext) {

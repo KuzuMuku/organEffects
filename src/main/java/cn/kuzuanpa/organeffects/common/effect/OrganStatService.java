@@ -249,6 +249,20 @@ public final class OrganStatService {
         CLIENT_SYNCED_POINTS.put(playerId, new ConcurrentHashMap<>(points));
     }
 
+    public static Map<String, Long> getClientSyncedPoints(LivingEntity entity) {
+        if (entity == null) {
+            return Map.of();
+        }
+        return Map.copyOf(CLIENT_SYNCED_POINTS.getOrDefault(entity.getUUID(), Map.of()));
+    }
+
+    public static long getClientSyncedPoint(LivingEntity entity, String pointKey) {
+        if (entity == null || pointKey == null || pointKey.isBlank()) {
+            return 0L;
+        }
+        return CLIENT_SYNCED_POINTS.getOrDefault(entity.getUUID(), Map.of()).getOrDefault(pointKey, 0L);
+    }
+
     private static void tickOxygen(Player player, Map<String, Long> points) {
         long oxygen = Math.max(0L, getStat(points, OXYGEN_EFFICIENCY));
         if (oxygen <= 0L || player.tickCount % 10 != 0) {

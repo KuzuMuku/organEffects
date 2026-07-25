@@ -24,6 +24,7 @@ import cn.kuzuanpa.organeffects.common.effect.EffectRecalculationService;
 import cn.kuzuanpa.organeffects.common.effect.OrganStatService;
 import cn.kuzuanpa.organeffects.common.effect.RuntimeEffectService;
 import cn.kuzuanpa.organeffects.common.effect.RuntimePointExecutor;
+import cn.kuzuanpa.organeffects.common.effect.ShieldPointService;
 import cn.kuzuanpa.organeffects.common.skill.SkillManager;
 import java.util.HashMap;
 import java.util.Map;
@@ -169,6 +170,7 @@ public class ServerEventHandler {
 
     @SubscribeEvent
     public void onLivingHurt(LivingHurtEvent event) {
+        ShieldPointService.handleLivingHurt(event);
         Entity attackerEntity = event.getSource().getEntity();
         RuntimeEffectService.handleTakeDamage(event.getEntity(), event.getSource(), event.getAmount());
         if (attackerEntity instanceof LivingEntity attacker) {

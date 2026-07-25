@@ -1,0 +1,5 @@
+{
+  "point": "organ_stat:organeffects:muscular_strength",
+  "display_name_key": "point.organeffects.organ_stat.organeffects.muscular_strength",
+  "sync_to_client": true
+}

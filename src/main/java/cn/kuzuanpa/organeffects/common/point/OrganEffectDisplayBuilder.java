@@ -270,6 +270,10 @@ public final class OrganEffectDisplayBuilder {
     }
 
     private static Component describeCondition(EffectDefinition.Condition condition) {
+        Component customDisplay = resolveCustomDisplay(condition.configString("custom_display_key"));
+        if (customDisplay != null) {
+            return customDisplay;
+        }
         Component custom = OrganEffectsExtensionApi.renderCondition(condition);
         if (custom != null) {
             return custom;
@@ -312,57 +316,74 @@ public final class OrganEffectDisplayBuilder {
             case "dimension_type" -> Component.translatable("message.organeffects.effects.condition.dimension_type",
                     describeDimensionId(condition.configString("value")));
             case "slot_index" -> Component.translatable("message.organeffects.effects.condition.slot_index",
-                    formatOperator(condition.operator()), valueOf(condition.value()));
+                    formatOperator(condition.configString("op")), valueOf(condition.configLong("value")));
             case "distance_to_edge" -> Component.translatable("message.organeffects.effects.condition.distance_to_edge",
-                    translateKey("message.organeffects.effects.edge.", condition.edge()),
-                    formatOperator(condition.operator()), valueOf(condition.value()));
+                    translateKey("message.organeffects.effects.edge.", condition.configString("edge")),
+                    formatOperator(condition.configString("op")), valueOf(condition.configLong("value")));
             case "weather" -> Component.translatable("message.organeffects.effects.condition.weather",
-                    translateKey("message.organeffects.effects.weather.", condition.weather()));
+                    translateKey("message.organeffects.effects.weather.", firstConditionString(condition, "weather", "value")));
             case "time" -> describeTimeCondition(condition);
             case "has_organ" -> Component.translatable("message.organeffects.effects.condition.has_organ",
-                    translateScope(condition.scope()), describeOrganId(condition.organ()));
+                    translateScope(condition.configString("scope")), describeOrganId(condition.configString("organ")));
             case "biome" -> describeBiomeCondition(condition);
-            case "dimid" -> Component.translatable("message.organeffects.effects.condition.dimid", describeDimensionId(condition.dimension()));
+            case "dimid" -> Component.translatable("message.organeffects.effects.condition.dimid", describeDimensionId(firstConditionString(condition, "value_id", "value")));
             case "lightlevel" -> Component.translatable("message.organeffects.effects.condition.lightlevel",
-                    formatOperator(condition.operator()), valueOf(condition.value()));
+                    formatOperator(condition.configString("op")), valueOf(condition.configLong("value")));
             case "stepon" -> describeStepOnCondition(condition);
             default -> Component.literal(condition.type());
         };
     }
 
     private static Component describeBiomeCondition(EffectDefinition.Condition condition) {
-        if (condition.biome() != null && condition.biomeTag() != null) {
+        String biomeId = firstConditionString(condition, "value_id", "value");
+        String biomeTag = firstConditionString(condition, "biome_tag", "tag");
+        if (biomeId != null && biomeTag != null) {
             return Component.translatable("message.organeffects.effects.condition.biome_and_tag",
-                    describeBiomeId(condition.biome()), condition.biomeTag());
+                    describeBiomeId(biomeId), biomeTag);
         }
-        if (condition.biomeTag() != null) {
-            return Component.translatable("message.organeffects.effects.condition.biome_tag", condition.biomeTag());
+        if (biomeTag != null) {
+            return Component.translatable("message.organeffects.effects.condition.biome_tag", biomeTag);
         }
-        return Component.translatable("message.organeffects.effects.condition.biome", describeBiomeId(condition.biome()));
+        return Component.translatable("message.organeffects.effects.condition.biome", describeBiomeId(biomeId));
     }
 
     private static Component describeStepOnCondition(EffectDefinition.Condition condition) {
-        if (condition.block() != null && condition.blockTag() != null) {
+        String blockId = condition.configString("block");
+        String blockTag = condition.configString("block_tag");
+        if (blockId != null && blockTag != null) {
             return Component.translatable("message.organeffects.effects.condition.stepon_and_tag",
-                    describeBlockId(condition.block()), condition.blockTag());
+                    describeBlockId(blockId), blockTag);
         }
-        if (condition.blockTag() != null) {
-            return Component.translatable("message.organeffects.effects.condition.stepon_tag", condition.blockTag());
+        if (blockTag != null) {
+            return Component.translatable("message.organeffects.effects.condition.stepon_tag", blockTag);
         }
-        return Component.translatable("message.organeffects.effects.condition.stepon", describeBlockId(condition.block()));
+        return Component.translatable("message.organeffects.effects.condition.stepon", describeBlockId(blockId));
     }
 
     private static Component describeTimeCondition(EffectDefinition.Condition condition) {
-        if (condition.time() != null) {
+        String mode = condition.configString("mode");
+        Long min = condition.configLong("min");
+        Long max = condition.configLong("max");
+        if (mode != null) {
             return Component.translatable("message.organeffects.effects.condition.time_mode",
-                    translateKey("message.organeffects.effects.time.", condition.time()));
+                    translateKey("message.organeffects.effects.time.", mode));
         }
-        if (condition.min() != null || condition.max() != null) {
+        if (min != null || max != null) {
             return Component.translatable("message.organeffects.effects.condition.time_range",
-                    valueOf(condition.min()), valueOf(condition.max()));
+                    valueOf(min), valueOf(max));
         }
         return Component.translatable("message.organeffects.effects.condition.time_value",
-                formatOperator(condition.operator()), valueOf(condition.value()));
+                formatOperator(condition.configString("op")), valueOf(condition.configLong("value")));
+    }
+
+    private static String firstConditionString(EffectDefinition.Condition condition, String... keys) {
+        for (String key : keys) {
+            String value = condition.configString(key);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static Component describeEvent(EffectDefinition.EventRule event) {

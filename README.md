@@ -17,6 +17,7 @@ Example point keys:
 - `skill:organeffects:wonder_sight`
 - `counter:organeffects:charge`
 - `runtime:organeffects:storm_insight_token`
+- `shield:organeffects:quantum_barrier`
 
 ## Build
 
@@ -62,6 +63,7 @@ Source model and execution order:
 - Executions check `runtime:*` points first, then fall back to pooled source-backed points with the same key.
 - Static recompute-owned instance sources are rebuilt during recompute; event-earned `organ-instance:.../event/...` sources are expected to persist until consumed or explicitly cleared.
 - `effect_point_viewer` is both a display tool and a recompute trigger, so it remains useful for debugging but can still hide stale recompute bugs if you only test through the item.
+- `shield:*` points are consumed before health loss in `LivingHurtEvent`; scripts remain responsible for shield capacity and recharge.
 
 ## Java extension API
 
@@ -119,6 +121,7 @@ Representative focused samples now include:
 ## Developer docs
 
 - Effect JSON guide: `docs/organ-effect-json-guide.md`
+- Shield points: `docs/shield-point-system.md`
 - Skills: `skills`
 
 ## Point Config
@@ -130,6 +133,21 @@ Current supported fields:
 - `point`: full point key such as `organ_stat:organeffects:muscular_strength`
 - `display_name_key`: optional translation key used to override the default display-name lookup for this point
 - `sync_to_client`: whether this point should be included in the lightweight client sync cache
+- `priority`: optional shield priority for `shield:*` points, default `0`
+- `damage_types`: optional shield damage type list
+- `damage_type_whitelist`: when `true`, `damage_types` is treated as a whitelist; otherwise it is a blacklist
+- `overflow_mode`: shield overflow mode, default `spill`, optional `block`
+- `on_hit_runtime`: optional runtime point emitted when this shield absorbs damage
+- `on_break_runtime`: optional runtime point emitted when this shield breaks
+
+Shield-specific meaning:
+
+- `shield:*` points use point config as shield consumption metadata.
+- Point config does not define shield capacity, recharge rate, or recharge delay.
+- Shield `amount` is always current value.
+- `overflow_mode: "spill"` lets leftover damage pass through after the shield is reduced to zero.
+- `overflow_mode: "block"` negates the whole hit if the shield is present, then breaks that shield layer.
+- `on_hit_runtime` and `on_break_runtime` are the preferred bridge back into script-side behavior.
 
 Example:
 
