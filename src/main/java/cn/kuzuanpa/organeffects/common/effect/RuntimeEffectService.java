@@ -394,6 +394,7 @@ public final class RuntimeEffectService {
                 applyPointMutations(entity, holder, instance, eventRule.addPoints(), 1L);
                 applyConsumes(entity, holder, instance, eventRule.consumePoints());
                 if (entity instanceof Player player) {
+                    TargetPointExecutionService.handleEvent(player, holder, event);
                     RuntimePointExecutor.execute(player);
                 }
             }

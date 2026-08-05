@@ -391,7 +391,7 @@ public class SkillManager {
 
     private static String normalizeSkillId(String skillId) {
         ResourceLocation parsed = ResourceLocation.tryParse(skillId);
-        return parsed != null ? parsed.toString() : (skillId == null ? "" : skillId);
+        return parsed != null ? parsed.toString() : skillId;
     }
 
     private static void applyCooldown(Player player, SkillDefinition skill, String normalizedSkillId) {

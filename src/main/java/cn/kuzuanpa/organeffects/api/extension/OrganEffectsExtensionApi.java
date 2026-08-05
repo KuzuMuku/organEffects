@@ -52,6 +52,7 @@ public final class OrganEffectsExtensionApi {
     private static final Map<String, ConditionDisplayRenderer> CONDITION_DISPLAYS = new LinkedHashMap<>();
     private static final Map<String, EventDisplayRenderer> EVENT_DISPLAYS = new LinkedHashMap<>();
     private static final Map<String, ActionDisplayRenderer> ACTION_DISPLAYS = new LinkedHashMap<>();
+    private static final Map<String, TargetPointExecutor> TARGET_POINT_EXECUTORS = new LinkedHashMap<>();
     private static final Map<String, EventFilterHandler> EVENT_FILTER_HANDLERS = new LinkedHashMap<>();
     private static final Map<String, RecomputeCallback> RECOMPUTE_CALLBACKS = new LinkedHashMap<>();
 
@@ -80,6 +81,10 @@ public final class OrganEffectsExtensionApi {
 
     public static void registerActionDisplay(String type, ActionDisplayRenderer renderer) {
         ACTION_DISPLAYS.put(type, renderer);
+    }
+
+    public static void registerTargetPointExecutor(TargetPointExecutor executor) {
+        TARGET_POINT_EXECUTORS.put(executor.type(), executor);
     }
 
     public static void registerEventFilter(String key, EventFilterHandler handler) {
@@ -129,6 +134,10 @@ public final class OrganEffectsExtensionApi {
         return renderer != null ? renderer.render(action) : null;
     }
 
+    public static TargetPointExecutor getTargetPointExecutor(String type) {
+        return TARGET_POINT_EXECUTORS.get(type);
+    }
+
     public static boolean matchesExtraEventFilters(EffectDefinition.EventRule eventRule, OrganEffectsRuntimeEvent event) {
         for (Map.Entry<String, JsonElement> entry : eventRule.extra().entrySet()) {
             EventFilterHandler handler = EVENT_FILTER_HANDLERS.get(entry.getKey());
@@ -148,6 +157,7 @@ public final class OrganEffectsExtensionApi {
         registerPointProducer(new DerivedGrantPointProducer());
         registerPointExecutor(new GrantItemsExecutor());
         registerPointExecutor(new ApplyMobEffectExecutor());
+        registerTargetPointExecutor(new ApplyTargetMobEffectExecutor());
         registerPointExecutor(new HealExecutor());
         registerPointExecutor(new TauntExecutor());
         registerPointExecutor(new DamageSelfExecutor());
@@ -669,6 +679,54 @@ public final class OrganEffectsExtensionApi {
             boolean applied = context.player().addEffect(new MobEffectInstance(effect, duration, amplifier, false, true, true));
             MobEffectInstance after = context.player().getEffect(effect);
             OrganEffectsDebug.trace(context.player(), "apply effect id=%s applied=%s used=%d finalDur=%d finalAmp=%d", effectId, applied, usage.usedPoints(), after != null ? after.getDuration() : 0, after != null ? after.getAmplifier() : -1);
+        }
+    }
+
+    private static final class ApplyTargetMobEffectExecutor implements TargetPointExecutor {
+        @Override
+        public String type() {
+            return "apply_target_mob_effect";
+        }
+
+        @Override
+        public void execute(TargetExecutionContext context, EffectDefinition.BonusAction action) {
+            if (action.effectId() == null) {
+                OrganEffectsDebug.trace(context.player(), "apply target effect skipped missing effect id");
+                return;
+            }
+            ResourceLocation effectId = ResourceLocation.tryParse(action.effectId());
+            if (effectId == null) {
+                OrganEffectsDebug.trace(context.player(), "apply target effect skipped invalid id=%s", action.effectId());
+                return;
+            }
+            MobEffect effect = BuiltInRegistries.MOB_EFFECT.get(effectId);
+            if (effect == null) {
+                OrganEffectsDebug.trace(context.player(), "apply target effect skipped registry miss=%s", effectId);
+                return;
+            }
+            LivingEntity target = context.target();
+            if (target == null || !target.isAlive()) {
+                OrganEffectsDebug.trace(context.player(), "apply target effect skipped missing live target id=%s", effectId);
+                return;
+            }
+            int duration = action.durationTicks() != null ? Math.max(2, action.durationTicks()) : 40;
+            int amplifier = action.amplifier() != null ? Math.max(0, action.amplifier()) : 0;
+            MobEffectInstance current = target.getEffect(effect);
+            int refreshThreshold = Math.max(10, duration / 4);
+            if (current != null && current.getAmplifier() >= amplifier && current.getDuration() > refreshThreshold) {
+                return;
+            }
+            PointExecutor.PointUsage usage = context.resolveUsage(action);
+            if (usage.usedPoints() <= 0L) {
+                OrganEffectsDebug.trace(context.player(), "apply target effect skipped zero usage id=%s", effectId);
+                return;
+            }
+            boolean applied = target.addEffect(new MobEffectInstance(effect, duration, amplifier, false, true, true), context.player());
+            MobEffectInstance after = target.getEffect(effect);
+            OrganEffectsDebug.trace(context.player(),
+                    "apply target effect id=%s target=%s applied=%s used=%d finalDur=%d finalAmp=%d",
+                    effectId, target.getName().getString(), applied, usage.usedPoints(),
+                    after != null ? after.getDuration() : 0, after != null ? after.getAmplifier() : -1);
         }
     }
 
