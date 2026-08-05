@@ -275,7 +275,8 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
                 continue;
             }
             String id = readPointId(grantObj, type, defaultNamespace);
-            grants.add(new EffectDefinition.Grant(type, id, amount));
+            boolean hidden = GsonHelper.getAsBoolean(grantObj, "hidden", false);
+            grants.add(new EffectDefinition.Grant(type, id, amount, hidden));
         }
         return new GrantReadResult(grants, derivedRules);
     }

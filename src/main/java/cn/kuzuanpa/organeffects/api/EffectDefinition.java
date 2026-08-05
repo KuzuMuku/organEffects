@@ -91,7 +91,12 @@ public record EffectDefinition(
         }
     }
 
-    public record Grant(String type, String id, long amount) {
+    public record Grant(
+            String type,
+            String id,
+            long amount,
+            boolean hidden
+    ) {
     }
 
     public record EventRule(

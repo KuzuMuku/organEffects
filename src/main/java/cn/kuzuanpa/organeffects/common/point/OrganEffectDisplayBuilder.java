@@ -21,6 +21,7 @@ import cn.kuzuanpa.organapi.common.data.OrganRegistryAccess;
 import cn.kuzuanpa.organeffects.api.EffectDefinition;
 import cn.kuzuanpa.organeffects.api.extension.OrganEffectsExtensionApi;
 import cn.kuzuanpa.organeffects.common.data.OrganEffectData;
+import cn.kuzuanpa.organeffects.common.effect.EffectRecalculationService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -43,6 +44,13 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 public final class OrganEffectDisplayBuilder {
     private static final int DEFAULT_TOOLTIP_LINES = 4;
+    private static final ChatFormatting POINT_COLOR = ChatFormatting.BLUE;
+    private static final ChatFormatting CONDITION_COLOR = ChatFormatting.YELLOW;
+    private static final ChatFormatting GRANT_COLOR = ChatFormatting.GREEN;
+    private static final ChatFormatting EVENT_COLOR = ChatFormatting.LIGHT_PURPLE;
+    private static final ChatFormatting EXECUTION_COLOR = ChatFormatting.RED;
+    private static final ChatFormatting LABEL_COLOR = ChatFormatting.DARK_GRAY;
+    private static final ChatFormatting SEPARATOR_COLOR = ChatFormatting.GRAY;
 
     private OrganEffectDisplayBuilder() {
     }
@@ -56,11 +64,12 @@ public final class OrganEffectDisplayBuilder {
             }
             int effectIndex = 0;
             for (EffectDefinition effect : OrganEffectData.INSTANCE.getEffectsForOrgan(definition.id())) {
-                appendViewerGrantEntries(entries, definition, position, effectIndex, effect.conditions(), effect.grants());
+                boolean conditionsMet = EffectRecalculationService.evaluateConditions(player, position, effect.conditions());
+                appendViewerGrantEntries(entries, definition, position, effectIndex, effect.conditions(), effect.grants(), conditionsMet);
                 appendViewerDerivedGrantEntries(entries, definition, position, effectIndex, effect.conditions(),
-                        OrganEffectData.INSTANCE.getDerivedGrantRulesForEffect(definition.id(), effectIndex));
-                appendViewerEventEntries(entries, definition, position, effectIndex, effect.conditions(), effect.events());
-                appendViewerExecutionEntries(entries, definition, position, effectIndex, effect.conditions(), effect.executions());
+                        OrganEffectData.INSTANCE.getDerivedGrantRulesForEffect(definition.id(), effectIndex), conditionsMet);
+                appendViewerEventEntries(entries, definition, position, effectIndex, effect.conditions(), effect.events(), conditionsMet);
+                appendViewerExecutionEntries(entries, definition, position, effectIndex, effect.conditions(), effect.executions(), conditionsMet);
                 effectIndex++;
             }
         }
@@ -141,9 +150,15 @@ public final class OrganEffectDisplayBuilder {
         }
         MutableComponent prefix = describeConditionPrefix(conditions, includeConditionlessHeader);
         for (EffectDefinition.Grant grant : grants) {
+            if (grant.hidden()) {
+                continue;
+            }
             Component point = formatPointAmount(grant.type(), grant.id(), grant.amount());
+            String translationKey = "skill".equals(grant.type())
+                    ? "message.organeffects.effects.provides_active_skill"
+                    : "message.organeffects.effects.provides";
             target.add(new DisplayLine("grant",
-                    prefix.copy().append(Component.translatable("message.organeffects.effects.provides", point)),
+                    withKindLabel("grant", prefix.copy().append(Component.translatable(translationKey, point).withStyle(GRANT_COLOR))),
                     buildConditionHover(conditions)));
         }
     }
@@ -156,7 +171,7 @@ public final class OrganEffectDisplayBuilder {
         MutableComponent prefix = describeConditionPrefix(conditions, includeConditionlessHeader);
         for (OrganEffectData.DerivedGrantRule rule : rules) {
             target.add(new DisplayLine("grant",
-                    prefix.copy().append(describeDerivedGrant(rule)),
+                    withKindLabel("grant", prefix.copy().append(describeDerivedGrant(rule))),
                     buildConditionHover(conditions)));
         }
     }
@@ -168,29 +183,29 @@ public final class OrganEffectDisplayBuilder {
             }
             Component customDisplay = resolveCustomDisplay(event.customDisplayKey());
             if (customDisplay != null) {
-                target.add(new DisplayLine("event", customDisplay.copy(), buildEventHover(conditions, event)));
+                target.add(new DisplayLine("event", withKindLabel("event", customDisplay.copy().withStyle(EVENT_COLOR)), buildEventHover(conditions, event)));
                 continue;
             }
             List<Component> pieces = new ArrayList<>();
             for (EffectDefinition.PointMutation mutation : event.addPoints()) {
                 pieces.add(Component.translatable("message.organeffects.effects.gains",
-                        formatPointAmount(mutation.type(), mutation.id(), mutation.amount())));
+                        formatPointAmount(mutation.type(), mutation.id(), mutation.amount())).withStyle(GRANT_COLOR));
             }
             for (EffectDefinition.PointMutation mutation : event.consumePoints()) {
                 pieces.add(Component.translatable("message.organeffects.effects.consumes",
-                        formatPointAmount(mutation.type(), mutation.id(), mutation.amount())));
+                        formatPointAmount(mutation.type(), mutation.id(), mutation.amount())).withStyle(EXECUTION_COLOR));
             }
             for (EffectDefinition.BonusAction action : event.actions()) {
-                pieces.add(describeAction(action));
+                pieces.add(describeAction(action).copy().withStyle(EVENT_COLOR));
             }
             if (pieces.isEmpty()) {
                 continue;
             }
             MutableComponent prefix = describeConditionPrefix(conditions, false)
-                    .append(Component.translatable("message.organeffects.effects.on_event", describeEvent(event)).withStyle(ChatFormatting.YELLOW))
-                    .append(Component.literal(": ").withStyle(ChatFormatting.GRAY));
+                    .append(Component.translatable("message.organeffects.effects.on_event", describeEvent(event)).withStyle(EVENT_COLOR))
+                    .append(Component.literal(": ").withStyle(SEPARATOR_COLOR));
             Component body = joinComponents(pieces);
-            target.add(new DisplayLine("event", prefix.append(body), buildEventHover(conditions, event)));
+            target.add(new DisplayLine("event", withKindLabel("event", prefix.append(body)), buildEventHover(conditions, event)));
         }
     }
 
@@ -201,78 +216,86 @@ public final class OrganEffectDisplayBuilder {
             }
             Component customDisplay = resolveCustomDisplay(execution.customDisplayKey());
             if (customDisplay != null) {
-                target.add(new DisplayLine("execution", customDisplay.copy(), buildExecutionHover(conditions, execution)));
+                target.add(new DisplayLine("execution", withKindLabel("execution", customDisplay.copy()), buildExecutionHover(conditions, execution)));
                 continue;
             }
             MutableComponent prefix = describeConditionPrefix(conditions, false)
-                    .append(Component.translatable("message.organeffects.effects.when_points", describePointBinding(execution)).withStyle(ChatFormatting.YELLOW))
-                    .append(Component.literal(": ").withStyle(ChatFormatting.GRAY));
-            target.add(new DisplayLine("execution", prefix.append(describeAction(execution)), buildExecutionHover(conditions, execution)));
+                    .append(Component.translatable("message.organeffects.effects.when_points", describePointBinding(execution)))
+                    .append(Component.literal(": ").withStyle(SEPARATOR_COLOR));
+            target.add(new DisplayLine("execution", withKindLabel("execution", prefix.append(describeAction(execution).copy().withStyle(EXECUTION_COLOR))), buildExecutionHover(conditions, execution)));
         }
     }
 
     private static void appendViewerGrantEntries(List<ViewerEffectEntry> target, OrganDefinition definition, OrganPosition position, int effectIndex,
-                                                 List<EffectDefinition.Condition> conditions, List<EffectDefinition.Grant> grants) {
+                                                 List<EffectDefinition.Condition> conditions, List<EffectDefinition.Grant> grants, boolean conditionsMet) {
         if (conditions.isEmpty() || conditions.stream().allMatch(condition -> condition == null || Objects.equals(condition.type(), "static"))) {
             return;
         }
         for (EffectDefinition.Grant grant : grants) {
-            MutableComponent text = describeConditionPrefix(conditions, false)
-                    .append(Component.translatable("message.organeffects.effects.provides",
-                            EffectPointTextHelper.getDisplayName(grant.type() + ":" + grant.id())));
+            if (grant.hidden()) {
+                continue;
+            }
+            MutableComponent text = describeConditionPrefix(conditions, false, conditionsMet)
+                    .append(Component.translatable("skill".equals(grant.type())
+                                    ? "message.organeffects.effects.provides_active_skill"
+                                    : "message.organeffects.effects.provides",
+                            EffectPointTextHelper.getDisplayName(grant.type() + ":" + grant.id())).withStyle(GRANT_COLOR));
             String amountText = "+" + grant.amount();
-            target.add(new ViewerEffectEntry("grant", text, amountText, buildViewerHover(definition, position, effectIndex, conditions, null, null)));
+            target.add(new ViewerEffectEntry("grant", withKindLabel("grant", text), amountText, buildViewerHover(definition, position, effectIndex, conditions, conditionsMet, null, null)));
         }
     }
 
     private static void appendViewerDerivedGrantEntries(List<ViewerEffectEntry> target, OrganDefinition definition, OrganPosition position, int effectIndex,
-                                                        List<EffectDefinition.Condition> conditions, List<OrganEffectData.DerivedGrantRule> rules) {
+                                                        List<EffectDefinition.Condition> conditions, List<OrganEffectData.DerivedGrantRule> rules, boolean conditionsMet) {
         if (rules.isEmpty()) {
             return;
         }
         for (OrganEffectData.DerivedGrantRule rule : rules) {
-            MutableComponent text = describeConditionPrefix(conditions, false).append(describeDerivedGrant(rule));
-            target.add(new ViewerEffectEntry("grant", text, null, buildViewerHover(definition, position, effectIndex, conditions, null, null)));
+            MutableComponent text = describeConditionPrefix(conditions, false, conditionsMet).append(describeDerivedGrant(rule));
+            target.add(new ViewerEffectEntry("grant", withKindLabel("grant", text), null, buildViewerHover(definition, position, effectIndex, conditions, conditionsMet, null, null)));
         }
     }
 
     private static void appendViewerEventEntries(List<ViewerEffectEntry> target, OrganDefinition definition, OrganPosition position, int effectIndex,
-                                                 List<EffectDefinition.Condition> conditions, List<EffectDefinition.EventRule> events) {
+                                                 List<EffectDefinition.Condition> conditions, List<EffectDefinition.EventRule> events, boolean conditionsMet) {
         for (EffectDefinition.EventRule event : events) {
             if (event.hidden()) {
                 continue;
             }
             Component customDisplay = resolveCustomDisplay(event.customDisplayKey());
             if (customDisplay != null) {
-                target.add(new ViewerEffectEntry("event", customDisplay.copy(), null, buildViewerHover(definition, position, effectIndex, conditions, event, null)));
+                target.add(new ViewerEffectEntry("event", withKindLabel("event", customDisplay.copy().withStyle(EVENT_COLOR)), null, buildViewerHover(definition, position, effectIndex, conditions, conditionsMet, event, null)));
                 continue;
             }
             for (EffectDefinition.PointMutation mutation : event.addPoints()) {
-                MutableComponent text = Component.translatable("message.organeffects.effects.on_event", describeEvent(event))
-                        .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
+                MutableComponent text = describeConditionPrefix(conditions, false, conditionsMet)
+                        .append(Component.translatable("message.organeffects.effects.on_event", describeEvent(event))
+                        .withStyle(EVENT_COLOR)
+                        .append(Component.literal(": ").withStyle(SEPARATOR_COLOR)))
                         .append(Component.translatable("message.organeffects.effects.gains",
-                                EffectPointTextHelper.getDisplayName(mutation.type() + ":" + mutation.id())));
+                                EffectPointTextHelper.getDisplayName(mutation.type() + ":" + mutation.id())).withStyle(GRANT_COLOR));
                 String amountText = "+" + mutation.amount();
-                target.add(new ViewerEffectEntry("event", text, amountText, buildViewerHover(definition, position, effectIndex, conditions, event, null)));
+                target.add(new ViewerEffectEntry("event", withKindLabel("event", text), amountText, buildViewerHover(definition, position, effectIndex, conditions, conditionsMet, event, null)));
             }
         }
     }
 
     private static void appendViewerExecutionEntries(List<ViewerEffectEntry> target, OrganDefinition definition, OrganPosition position, int effectIndex,
-                                                     List<EffectDefinition.Condition> conditions, List<EffectDefinition.BonusAction> executions) {
+                                                     List<EffectDefinition.Condition> conditions, List<EffectDefinition.BonusAction> executions, boolean conditionsMet) {
         for (EffectDefinition.BonusAction execution : executions) {
             if (execution.hidden()) {
                 continue;
             }
             Component customDisplay = resolveCustomDisplay(execution.customDisplayKey());
             if (customDisplay != null) {
-                target.add(new ViewerEffectEntry("execution", customDisplay.copy(), null, buildViewerHover(definition, position, effectIndex, conditions, null, execution)));
+                target.add(new ViewerEffectEntry("execution", withKindLabel("execution", customDisplay.copy()), null, buildViewerHover(definition, position, effectIndex, conditions, conditionsMet, null, execution)));
                 continue;
             }
-            MutableComponent text = Component.translatable("message.organeffects.effects.when_points", describePointBinding(execution))
-                    .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
-                    .append(describeAction(execution));
-            target.add(new ViewerEffectEntry("execution", text, null, buildViewerHover(definition, position, effectIndex, conditions, null, execution)));
+            MutableComponent text = describeConditionPrefix(conditions, false, conditionsMet)
+                    .append(Component.translatable("message.organeffects.effects.when_points", describePointBinding(execution))
+                    .append(Component.literal(": ").withStyle(SEPARATOR_COLOR))
+                    .append(describeAction(execution).copy().withStyle(EXECUTION_COLOR)));
+            target.add(new ViewerEffectEntry("execution", withKindLabel("execution", text), null, buildViewerHover(definition, position, effectIndex, conditions, conditionsMet, null, execution)));
         }
     }
 
@@ -280,12 +303,25 @@ public final class OrganEffectDisplayBuilder {
         List<Component> readableConditions = describeConditions(conditions);
         if (readableConditions.isEmpty()) {
             return includeAlways
-                    ? Component.translatable("message.organeffects.effects.always_prefix").withStyle(ChatFormatting.YELLOW)
+                    ? Component.translatable("message.organeffects.effects.always_prefix").withStyle(CONDITION_COLOR)
                     : Component.empty();
         }
         return Component.translatable("message.organeffects.effects.when_prefix", joinComponents(readableConditions))
-                .withStyle(ChatFormatting.YELLOW)
-                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY));
+                .withStyle(CONDITION_COLOR)
+                .append(Component.literal(": ").withStyle(SEPARATOR_COLOR));
+    }
+
+    private static MutableComponent describeConditionPrefix(List<EffectDefinition.Condition> conditions, boolean includeAlways, boolean conditionsMet) {
+        ChatFormatting color = conditionsMet ? CONDITION_COLOR : ChatFormatting.GOLD;
+        List<Component> readableConditions = describeConditions(conditions);
+        if (readableConditions.isEmpty()) {
+            return includeAlways
+                    ? Component.translatable("message.organeffects.effects.always_prefix").withStyle(color)
+                    : Component.empty();
+        }
+        return Component.translatable("message.organeffects.effects.when_prefix", joinComponents(readableConditions))
+                .withStyle(color)
+                .append(Component.literal(": ").withStyle(SEPARATOR_COLOR));
     }
 
     private static MutableComponent describeDerivedGrant(OrganEffectData.DerivedGrantRule rule) {
@@ -294,7 +330,7 @@ public final class OrganEffectDisplayBuilder {
                 formatPointAmount(rule.targetType(), rule.targetId(), rule.amount()),
                 rule.per(),
                 EffectPointTextHelper.getDisplayName(rule.fromType() + ":" + rule.fromId())
-        );
+        ).withStyle(GRANT_COLOR);
     }
 
     private static List<Component> describeConditions(List<EffectDefinition.Condition> conditions) {
@@ -498,7 +534,9 @@ public final class OrganEffectDisplayBuilder {
             case "convert_block" -> Component.translatable("message.organeffects.effects.action.convert_block",
                     describeBlockId(action.configString("from")), describeBlockId(action.configString("to")));
             case "force_target" -> Component.translatable("message.organeffects.effects.action.force_target", valueOf(action.amount()));
-            case "apply_mob_effect" -> Component.translatable("message.organeffects.effects.action.apply_mob_effect",
+            case "apply_mob_effect" -> Component.translatable("message.organeffects.effects.action.apply_self_mob_effect",
+                    describeMobEffect(action.effectId()), valueOf(action.durationTicks()), valueOf(action.amplifier()));
+            case "apply_target_mob_effect" -> Component.translatable("message.organeffects.effects.action.apply_target_mob_effect",
                     describeMobEffect(action.effectId()), valueOf(action.durationTicks()), valueOf(action.amplifier()));
             case "heal" -> Component.translatable("message.organeffects.effects.action.heal", valueOf(action.amount()));
             case "grant_items" -> Component.translatable("message.organeffects.effects.action.grant_items",
@@ -530,6 +568,24 @@ public final class OrganEffectDisplayBuilder {
         return Component.translatable("message.organeffects.effects.hover.conditions", joinComponents(readableConditions));
     }
 
+    private static Component buildConditionHover(List<EffectDefinition.Condition> conditions, boolean conditionsMet) {
+        List<Component> readableConditions = describeConditions(conditions);
+        ChatFormatting color = conditionsMet ? CONDITION_COLOR : ChatFormatting.GOLD;
+        Component status = Component.translatable(
+                conditionsMet
+                        ? "message.organeffects.effects.hover.status.met"
+                        : "message.organeffects.effects.hover.status.unmet"
+        ).withStyle(color);
+        if (readableConditions.isEmpty()) {
+            return status.copy()
+                    .append(Component.literal(" "))
+                    .append(Component.translatable("message.organeffects.effects.hover.always").copy().withStyle(color));
+        }
+        return status.copy()
+                .append(Component.literal(" ").withStyle(SEPARATOR_COLOR))
+                .append(Component.translatable("message.organeffects.effects.hover.conditions", joinComponents(readableConditions)).copy().withStyle(color));
+    }
+
     private static Component buildEventHover(List<EffectDefinition.Condition> conditions, EffectDefinition.EventRule event) {
         MutableComponent hover = Component.empty().append(buildConditionHover(conditions));
         if (event.source() != null) {
@@ -550,7 +606,7 @@ public final class OrganEffectDisplayBuilder {
     }
 
     private static Component buildViewerHover(OrganDefinition definition, OrganPosition position, int effectIndex,
-                                              List<EffectDefinition.Condition> conditions, EffectDefinition.EventRule event,
+                                              List<EffectDefinition.Condition> conditions, boolean conditionsMet, EffectDefinition.EventRule event,
                                               EffectDefinition.BonusAction execution) {
         MutableComponent hover = Component.empty()
                 .append(getOrganHeader(definition))
@@ -558,7 +614,7 @@ public final class OrganEffectDisplayBuilder {
                 .append(Component.literal(position.bodyPartId() + " #" + position.slotIndex()).withStyle(ChatFormatting.DARK_GRAY))
                 .append(Component.literal("\n"))
                 .append(Component.literal("effect #" + effectIndex).withStyle(ChatFormatting.DARK_GRAY));
-        Component conditionHover = buildConditionHover(conditions);
+        Component conditionHover = buildConditionHover(conditions, conditionsMet);
         if (!conditionHover.getString().isBlank()) {
             hover.append(Component.literal("\n")).append(conditionHover);
         }
@@ -581,12 +637,19 @@ public final class OrganEffectDisplayBuilder {
         return EffectPointTextHelper.getDisplayName(pointKey)
                 .copy()
                 .append(Component.literal(" +" + formatNumber(amount)).withStyle(ChatFormatting.GOLD))
+                .withStyle(POINT_COLOR)
                 .withStyle(style -> style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, EffectPointTextHelper.getDescription(pointKey))));
     }
 
     private static MutableComponent withHover(MutableComponent line, Component hover) {
-        return line.withStyle(style -> style.withColor(ChatFormatting.GREEN)
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hover)));
+        return line.withStyle(style -> style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hover)));
+    }
+
+    private static MutableComponent withKindLabel(String kind, MutableComponent body) {
+        return Component.translatable("message.organeffects.effects.tooltip.kind." + kind)
+                .withStyle(LABEL_COLOR)
+                .append(Component.literal(" ").withStyle(SEPARATOR_COLOR))
+                .append(body);
     }
 
     private static MutableComponent resolveCustomDisplay(String translationKey) {

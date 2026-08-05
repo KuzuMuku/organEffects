@@ -31,7 +31,7 @@ import net.minecraft.world.entity.player.Player;
 public class AttributeSyncer {
     private static final String ATTRIBUTE_KEY_PREFIX = "attribute:";
     private static final String MODIFIER_NAME_PREFIX = "organeffects:";
-    private static final String MOVEMENT_SPEED_ATTRIBUTE = "minecraft:movement_speed";
+    private static final String MOVEMENT_SPEED_ATTRIBUTE = "minecraft:generic.movement_speed";
 
     public static void applyFromMap(Player player, Map<String, Long> oldPoints, Map<String, Long> newPoints) {
         Set<String> keys = new HashSet<>();

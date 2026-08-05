@@ -28,7 +28,7 @@
             "from_id": "organeffects:cardiac_output",
             "per": 2,
             "target_type": "attribute",
-            "target_attribute": "minecraft:max_health"
+            "target_attribute": "minecraft:generic.max_health"
           }
         }
       ],

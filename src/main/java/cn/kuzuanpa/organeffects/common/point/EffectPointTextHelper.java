@@ -39,7 +39,7 @@ public final class EffectPointTextHelper {
 
     public static Component toChatLine(String pointKey, long value, Map<String, Long> sourceBreakdown) {
         MutableComponent pointName = getDisplayName(pointKey)
-                .withStyle(style -> style.withColor(ChatFormatting.GREEN)
+                .withStyle(style -> style.withColor(ChatFormatting.BLUE)
                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, getDescription(pointKey, sourceBreakdown))));
         return Component.literal("- ")
                 .append(pointName)
@@ -70,13 +70,13 @@ public final class EffectPointTextHelper {
     }
 
     private static MutableComponent getDefaultDisplayName(String pointKey) {
-        List<String> translationKeys = getTranslationKeys(pointKey);
-        if (!translationKeys.isEmpty()) {
-            return Component.translatableWithFallback(translationKeys.get(0), fallbackName(pointKey));
-        }
         Attribute attribute = getAttribute(pointKey);
         if (attribute != null) {
             return Component.translatable(attribute.getDescriptionId());
+        }
+        List<String> translationKeys = getTranslationKeys(pointKey);
+        if (!translationKeys.isEmpty()) {
+            return Component.translatableWithFallback(translationKeys.get(0), fallbackName(pointKey));
         }
         return Component.literal(pointKey);
     }
@@ -86,9 +86,12 @@ public final class EffectPointTextHelper {
     }
 
     public static Component getDescription(String pointKey, Map<String, Long> sourceBreakdown) {
+        Attribute attribute = getAttribute(pointKey);
         List<String> translationKeys = getTranslationKeys(pointKey);
         Component base;
-        if (!translationKeys.isEmpty()) {
+        if (attribute != null) {
+            base = Component.translatable(attribute.getDescriptionId());
+        } else if (!translationKeys.isEmpty()) {
             base = Component.translatableWithFallback(translationKeys.get(0) + ".desc", fallbackDescription(pointKey));
         } else {
             base = Component.literal(fallbackDescription(pointKey));

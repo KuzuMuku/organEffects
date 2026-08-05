@@ -72,7 +72,7 @@ public final class RuntimePointExecutor {
         executor.execute(new PointExecutor.PointExecutionContext(player, holder, action -> previewPointUsage(holder, action)), execution);
     }
 
-    private static PointExecutor.PointUsage previewPointUsage(IEffectHolder holder, EffectDefinition.BonusAction execution) {
+    public static PointExecutor.PointUsage previewPointUsage(IEffectHolder holder, EffectDefinition.BonusAction execution) {
         if (execution.pointType() == null || execution.pointId() == null) {
             return new PointExecutor.PointUsage(0L);
         }
