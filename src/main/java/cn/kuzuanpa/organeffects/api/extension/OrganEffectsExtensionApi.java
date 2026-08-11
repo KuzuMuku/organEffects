@@ -564,6 +564,22 @@ public final class OrganEffectsExtensionApi {
             }
             return blockValue != null || blockTag != null;
         });
+        registerEventFilter("sprinting", (eventRule, event, key, value) -> {
+            String filter = event.extraString("sprinting");
+            return filter != null && filter.equals(value.getAsString());
+        });
+        registerEventFilter("sneaking", (eventRule, event, key, value) -> {
+            String filter = event.extraString("sneaking");
+            return filter != null && filter.equals(value.getAsString());
+        });
+        registerEventFilter("swimming", (eventRule, event, key, value) -> {
+            String filter = event.extraString("swimming");
+            return filter != null && filter.equals(value.getAsString());
+        });
+        registerEventFilter("fall_flying", (eventRule, event, key, value) -> {
+            String filter = event.extraString("fall_flying");
+            return filter != null && filter.equals(value.getAsString());
+        });
         registerEventFilter("damage_type", (eventRule, event, key, value) -> {
             String damageType = event.extraString("damage_type");
             return damageType != null && damageType.equals(value.getAsString());

@@ -333,14 +333,32 @@ public final class RuntimeEffectService {
         return extra;
     }
 
+    private static JsonObject buildMoveExtra(Player player) {
+        JsonObject extra = new JsonObject();
+        if (player == null) {
+            return extra;
+        }
+        try {
+            extra.addProperty("sprinting", player.isSprinting());
+            extra.addProperty("sneaking", player.isCrouching());
+            extra.addProperty("swimming", player.isSwimming());
+            //elytra flying
+            extra.addProperty("fall_flying", player.isFallFlying());
+        } catch (Exception ignored) {
+        }
+        return extra;
+    }
+    //todo: 提取通用的“每做某事X次，将获得点数乘以Y”处理器
     private static MoveResult handleMoveEvent(Player player, double totalDistance) {
         IEffectHolder holder = player.getCapability(EffectCapabilities.EFFECT_HOLDER).orElse(null);
         if (holder == null) {
             return new MoveResult(0.0D);
         }
         double maxConsumedDistance = 0.0D;
+
         OrganEffectsRuntimeEvent event = OrganEffectsRuntimeEvent.builder("move", player)
                 .distanceMoved(totalDistance)
+                .extra(buildMoveExtra(player))
                 .build();
         for (EffectInstance instance : collectMatchingEffects(player, event.type())) {
             if (!EffectRecalculationService.evaluateConditions(player, instance.position(), instance.effect().conditions())) {
@@ -461,6 +479,7 @@ public final class RuntimeEffectService {
         }
     }
 
+    //todo: 提取抽象类
     private static boolean matchesEventFilter(EffectDefinition.EventRule eventRule, OrganEffectsRuntimeEvent event) {
         if (eventRule.foodOnly() && (event.itemStack().isEmpty() || !event.itemStack().isEdible())) {
             return false;
