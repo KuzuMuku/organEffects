@@ -62,11 +62,11 @@ public final class OrganStatService {
     private static final String NEURAL_CONDUCTION = key("neural_conduction");
     private static final String MUSCULAR_STRENGTH = key("muscular_strength");
     private static final String END_CRYSTAL_RESONANCE = key("end_crystal_resonance");
-    private static final String ATTRIBUTE_ARMOR = "attribute:minecraft:armor";
-    private static final String ATTRIBUTE_ARMOR_TOUGHNESS = "attribute:minecraft:armor_toughness";
-    private static final String ATTRIBUTE_ATTACK_DAMAGE = "attribute:minecraft:attack_damage";
-    private static final String ATTRIBUTE_MOVEMENT_SPEED = "attribute:minecraft:movement_speed";
-    private static final String ATTRIBUTE_MAX_HEALTH = "attribute:minecraft:max_health";
+    private static final String ATTRIBUTE_ARMOR = "attribute:minecraft:generic.armor";
+    private static final String ATTRIBUTE_ARMOR_TOUGHNESS = "attribute:minecraft:generic.armor_toughness";
+    private static final String ATTRIBUTE_ATTACK_DAMAGE = "attribute:minecraft:generic.attack_damage";
+    private static final String ATTRIBUTE_MOVEMENT_SPEED = "attribute:minecraft:generic.movement_speed";
+    private static final String ATTRIBUTE_MAX_HEALTH = "attribute:minecraft:generic.max_health";
     private static final String MUSCULAR_STRENGTH_KEY = "organ_stat:organeffects:muscular_strength";
     private static final double END_CRYSTAL_HEAL_RANGE = 32.0D;
 
@@ -107,7 +107,7 @@ public final class OrganStatService {
         applyAttributeModifier(entity, Attributes.ARMOR, "non_player_armor", armorBonus, AttributeModifier.Operation.ADDITION);
         applyAttributeModifier(entity, Attributes.ARMOR_TOUGHNESS, "non_player_armor_toughness", armorToughnessBonus, AttributeModifier.Operation.ADDITION);
         applyAttributeModifier(entity, Attributes.ATTACK_DAMAGE, "non_player_muscular_strength", attackDamageBonus, AttributeModifier.Operation.ADDITION);
-        applyAttributeModifier(entity, Attributes.MOVEMENT_SPEED, "non_player_speed", movementSpeedBonus, AttributeModifier.Operation.MULTIPLY_TOTAL);
+        applyAttributeModifier(entity, Attributes.MOVEMENT_SPEED, "non_player_speed", movementSpeedBonus, AttributeModifier.Operation.ADDITION);
 
         double maxHealth = entity.getMaxHealth();
         if (entity.getHealth() > maxHealth) {
@@ -416,7 +416,7 @@ public final class OrganStatService {
 
     private static long getStat(LivingEntity entity, String pointKey) {
         IEffectHolder holder = entity.getCapability(EffectCapabilities.EFFECT_HOLDER).orElse(null);
-        return holder == null ? 0L : holder.getEffectPoints().getOrDefault(pointKey, 0L);
+        return holder == null ? 0L : getStat(holder.getEffectPoints(), pointKey);
     }
 
     private static long getStat(Map<String, Long> points, String pointKey) {

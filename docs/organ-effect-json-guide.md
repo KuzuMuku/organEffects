@@ -19,7 +19,7 @@ OrganEffects 读取的入口是每个器官文件中的 `effects[]`。
 {
   "conditions": [{ "type": "static" }],
   "grants": [
-    { "type": "attribute", "attribute": "luck", "amount": 1 }
+    { "type": "attribute", "attribute": "minecraft:generic.luck", "amount": 1 }
   ],
   "events": [],
   "executions": []
@@ -116,7 +116,8 @@ OrganEffects 读取的入口是每个器官文件中的 `effects[]`。
 - 旧草案里混用过一些别名字段，当前以本文件的表格为准
 - `conditions` 目前是 AND 关系，不支持 OR / NOT / 嵌套组
 - `has_organ` 不做数量比较
-- `movement_speed` 按倍率处理，不要当成整数加法
+- vanilla attribute 建议写完整 ID，例如 `minecraft:generic.movement_speed`；加载器也会把旧短名补成完整 ID
+- `movement_speed` 每 1 点按 +0.1 的 ADDITION 修饰器处理；`amount` 请写整数点数
 
 ## 示例
 
@@ -129,8 +130,8 @@ OrganEffects 读取的入口是每个器官文件中的 `effects[]`。
   "grants": [
     {
       "type": "attribute",
-      "attribute": "movement_speed",
-      "amount": 0.1
+      "attribute": "minecraft:generic.movement_speed",
+      "amount": 1
     }
   ],
   "events": [

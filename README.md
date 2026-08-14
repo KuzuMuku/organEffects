@@ -13,7 +13,7 @@ OrganEffects keeps organ logic dependency-light by using points as the bridge be
 
 Example point keys:
 
-- `attribute:minecraft:luck`
+- `attribute:minecraft:generic.luck`
 - `skill:organeffects:wonder_sight`
 - `counter:organeffects:charge`
 - `runtime:organeffects:storm_insight_token`

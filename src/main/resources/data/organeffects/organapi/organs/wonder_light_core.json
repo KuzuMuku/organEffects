@@ -16,7 +16,7 @@
       "grants": [
         {
           "type": "attribute",
-          "attribute": "movement_speed",
+          "attribute": "minecraft:generic.movement_speed",
           "amount": 1
         }
       ],

@@ -15,7 +15,7 @@
       "grants": [
         {
           "type": "attribute",
-          "attribute": "luck",
+          "attribute": "minecraft:generic.luck",
           "amount": 1
         }
       ],
@@ -32,7 +32,7 @@
       "grants": [
         {
           "type": "attribute",
-          "attribute": "movement_speed",
+          "attribute": "minecraft:generic.movement_speed",
           "amount": 1
         }
       ],

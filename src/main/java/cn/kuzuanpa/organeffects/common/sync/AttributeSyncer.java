@@ -55,6 +55,7 @@ public class AttributeSyncer {
 
         Attribute attribute = BuiltInRegistries.ATTRIBUTE.get(attributeId);
         if (attribute == null) {
+            OrganEffectsDebug.trace(player, "attribute skipped unknown id=%s", attributeId);
             return;
         }
 
@@ -82,9 +83,6 @@ public class AttributeSyncer {
     }
 
     private static AttributeModifier.Operation resolveOperation(ResourceLocation attributeId) {
-        if (MOVEMENT_SPEED_ATTRIBUTE.equals(attributeId.toString())) {
-            return AttributeModifier.Operation.MULTIPLY_TOTAL;
-        }
         return AttributeModifier.Operation.ADDITION;
     }
 }
