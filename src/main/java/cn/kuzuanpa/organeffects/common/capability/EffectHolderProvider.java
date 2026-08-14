@@ -15,15 +15,19 @@
 
 package cn.kuzuanpa.organeffects.common.capability;
 
+import cn.kuzuanpa.organapi.common.util.OrganJsonStorage;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.capabilities.ICapabilitySerializable;
 import net.minecraftforge.common.util.LazyOptional;
 
-public class EffectHolderProvider implements ICapabilitySerializable<net.minecraft.nbt.CompoundTag> {
+public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag> {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("organeffects", "effect_holder");
     private static final String PERSISTENT_DATA_KEY = "organeffects.effect_holder";
     private static final String LEGACY_POINTS_KEY = "points";
@@ -37,12 +41,14 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
     private final Entity owner;
     private final EffectPointMapHolder holder;
     private final LazyOptional<IEffectHolder> optional;
+    private boolean loadedFromJson;
 
     public EffectHolderProvider(Entity owner) {
         this.owner = owner;
         this.holder = new EffectPointMapHolder();
+        this.holder.setDirtyListener(this::saveToJson);
         this.optional = LazyOptional.of(() -> holder);
-        loadFromOwner();
+        loadFromJson();
     }
 
     @Override
@@ -51,8 +57,29 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
     }
 
     @Override
-    public net.minecraft.nbt.CompoundTag serializeNBT() {
-        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+    public CompoundTag serializeNBT() {
+        CompoundTag tag = serializeData();
+        saveToJson(tag);
+        return new CompoundTag();
+    }
+
+    @Override
+    public void deserializeNBT(CompoundTag nbt) {
+        if (nbt != null && !nbt.isEmpty()) {
+            if (!loadedFromJson) {
+                apply(nbt);
+                saveToJson();
+                loadedFromJson = true;
+            }
+            return;
+        }
+        if (!loadedFromJson) {
+            loadFromJson();
+        }
+    }
+
+    private CompoundTag serializeData() {
+        CompoundTag tag = new CompoundTag();
         tag.put(SOURCES_KEY, holder.serializeSourcesNBT());
         tag.put(RUNTIME_POINTS_KEY, holder.serializeRuntimePointsNBT());
         tag.put(RUNTIME_EXPIRATIONS_KEY, holder.serializeRuntimeExpirationsNBT());
@@ -61,30 +88,49 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
             tag.putString("selected_skill", holder.selectedSkillId);
         }
         tag.putBoolean(DEBUG_ENABLED_KEY, holder.debugEnabled);
-        saveToOwner(tag);
         return tag;
     }
 
-    @Override
-    public void deserializeNBT(net.minecraft.nbt.CompoundTag nbt) {
+    private void apply(CompoundTag nbt) {
         holder.deserializeAllNBT(nbt);
         holder.selectedSkillId = nbt.getString("selected_skill");
         holder.debugEnabled = nbt.getBoolean(DEBUG_ENABLED_KEY);
-        saveToOwner(nbt);
     }
 
-    private void loadFromOwner() {
-        net.minecraft.nbt.CompoundTag persistentData = owner.getPersistentData();
-        if (persistentData.contains(PERSISTENT_DATA_KEY)) {
-            net.minecraft.nbt.CompoundTag saved = persistentData.getCompound(PERSISTENT_DATA_KEY);
-            holder.deserializeAllNBT(saved);
-            holder.selectedSkillId = saved.getString("selected_skill");
-            holder.debugEnabled = saved.getBoolean(DEBUG_ENABLED_KEY);
+    private void loadFromJson() {
+        CompoundTag saved = OrganJsonStorage.load(owner, "organeffects");
+        if (!saved.isEmpty()) {
+            apply(saved);
+            if (owner instanceof Player || hasPersistentData()) {
+                owner.getPersistentData().remove(PERSISTENT_DATA_KEY);
+                loadedFromJson = true;
+                return;
+            }
+            OrganJsonStorage.deleteSection(owner, "organeffects");
+        } else if (!(owner instanceof Player)) {
+            OrganJsonStorage.deleteSection(owner, "organeffects");
         }
     }
 
-    private void saveToOwner(net.minecraft.nbt.CompoundTag tag) {
-        owner.getPersistentData().put(PERSISTENT_DATA_KEY, tag.copy());
+    private void saveToJson() {
+        saveToJson(serializeData());
+    }
+
+    private void saveToJson(CompoundTag tag) {
+        boolean hasEffectState = owner instanceof Player || hasPersistentData();
+        if (!hasEffectState) {
+            return;
+        }
+        OrganJsonStorage.save(owner, "organeffects", tag);
+    }
+
+    private boolean hasPersistentData() {
+        return !holder.sources.isEmpty()
+                || !holder.runtimePoints.isEmpty()
+                || !holder.runtimeExpirations.isEmpty()
+                || !holder.skillCooldowns.isEmpty()
+                || (holder.selectedSkillId != null && !holder.selectedSkillId.isBlank())
+                || holder.debugEnabled;
     }
 
     private static class EffectPointMapHolder implements IEffectHolder {
@@ -92,9 +138,14 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         private final Map<String, Long> runtimePoints = new LinkedHashMap<>();
         private final Map<String, Long> runtimeExpirations = new LinkedHashMap<>();
         private final Map<String, Long> skillCooldowns = new LinkedHashMap<>();
+        private Runnable dirtyListener;
         private boolean dirty;
         private boolean debugEnabled;
         private String selectedSkillId = "";
+
+        void setDirtyListener(Runnable dirtyListener) {
+            this.dirtyListener = dirtyListener;
+        }
 
         @Override
         public Map<String, Long> getEffectPoints() {
@@ -197,6 +248,10 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
                 if (entry.getValue() != null && entry.getValue() != 0L) {
                     cleaned.put(entry.getKey(), entry.getValue());
                 }
+            }
+            Map<String, Long> existing = sources.get(sourceTag);
+            if (existing == null ? cleaned.isEmpty() : existing.equals(cleaned)) {
+                return;
             }
             if (cleaned.isEmpty()) {
                 sources.remove(sourceTag);
@@ -426,6 +481,9 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
         @Override
         public void markDirty() {
             dirty = true;
+            if (dirtyListener != null) {
+                dirtyListener.run();
+            }
         }
 
         @Override
@@ -438,10 +496,10 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
             dirty = false;
         }
 
-        net.minecraft.nbt.CompoundTag serializeSourcesNBT() {
-            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        CompoundTag serializeSourcesNBT() {
+            CompoundTag tag = new CompoundTag();
             for (Map.Entry<String, Map<String, Long>> sourceEntry : sources.entrySet()) {
-                net.minecraft.nbt.CompoundTag sourceTag = new net.minecraft.nbt.CompoundTag();
+                CompoundTag sourceTag = new CompoundTag();
                 for (Map.Entry<String, Long> entry : sourceEntry.getValue().entrySet()) {
                     sourceTag.putLong(entry.getKey(), entry.getValue());
                 }
@@ -450,39 +508,39 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
             return tag;
         }
 
-        net.minecraft.nbt.CompoundTag serializeRuntimePointsNBT() {
-            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        CompoundTag serializeRuntimePointsNBT() {
+            CompoundTag tag = new CompoundTag();
             for (Map.Entry<String, Long> entry : runtimePoints.entrySet()) {
                 tag.putLong(entry.getKey(), entry.getValue());
             }
             return tag;
         }
 
-        net.minecraft.nbt.CompoundTag serializeRuntimeExpirationsNBT() {
-            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        CompoundTag serializeRuntimeExpirationsNBT() {
+            CompoundTag tag = new CompoundTag();
             for (Map.Entry<String, Long> entry : runtimeExpirations.entrySet()) {
                 tag.putLong(entry.getKey(), entry.getValue());
             }
             return tag;
         }
 
-        net.minecraft.nbt.CompoundTag serializeSkillCooldownsNBT() {
-            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        CompoundTag serializeSkillCooldownsNBT() {
+            CompoundTag tag = new CompoundTag();
             for (Map.Entry<String, Long> entry : skillCooldowns.entrySet()) {
                 tag.putLong(entry.getKey(), entry.getValue());
             }
             return tag;
         }
 
-        void deserializeAllNBT(net.minecraft.nbt.CompoundTag nbt) {
+        void deserializeAllNBT(CompoundTag nbt) {
             sources.clear();
             runtimePoints.clear();
             runtimeExpirations.clear();
             skillCooldowns.clear();
             if (nbt.contains(SOURCES_KEY)) {
-                net.minecraft.nbt.CompoundTag sourceRoot = nbt.getCompound(SOURCES_KEY);
+                CompoundTag sourceRoot = nbt.getCompound(SOURCES_KEY);
                 for (String sourceKey : sourceRoot.getAllKeys()) {
-                    net.minecraft.nbt.CompoundTag sourceTag = sourceRoot.getCompound(sourceKey);
+                    CompoundTag sourceTag = sourceRoot.getCompound(sourceKey);
                     Map<String, Long> sourcePoints = new LinkedHashMap<>();
                     for (String pointKey : sourceTag.getAllKeys()) {
                         sourcePoints.put(pointKey, sourceTag.getLong(pointKey));
@@ -492,7 +550,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
                     }
                 }
             } else if (nbt.contains(LEGACY_POINTS_KEY)) {
-                net.minecraft.nbt.CompoundTag legacyPoints = nbt.getCompound(LEGACY_POINTS_KEY);
+                CompoundTag legacyPoints = nbt.getCompound(LEGACY_POINTS_KEY);
                 Map<String, Long> migrated = new HashMap<>();
                 for (String key : legacyPoints.getAllKeys()) {
                     migrated.put(key, legacyPoints.getLong(key));
@@ -502,19 +560,19 @@ public class EffectHolderProvider implements ICapabilitySerializable<net.minecra
                 }
             }
             if (nbt.contains(RUNTIME_POINTS_KEY)) {
-                net.minecraft.nbt.CompoundTag runtimeRoot = nbt.getCompound(RUNTIME_POINTS_KEY);
+                CompoundTag runtimeRoot = nbt.getCompound(RUNTIME_POINTS_KEY);
                 for (String pointKey : runtimeRoot.getAllKeys()) {
                     runtimePoints.put(pointKey, runtimeRoot.getLong(pointKey));
                 }
             }
             if (nbt.contains(RUNTIME_EXPIRATIONS_KEY)) {
-                net.minecraft.nbt.CompoundTag expirationRoot = nbt.getCompound(RUNTIME_EXPIRATIONS_KEY);
+                CompoundTag expirationRoot = nbt.getCompound(RUNTIME_EXPIRATIONS_KEY);
                 for (String pointKey : expirationRoot.getAllKeys()) {
                     runtimeExpirations.put(pointKey, expirationRoot.getLong(pointKey));
                 }
             }
             if (nbt.contains(SKILL_COOLDOWNS_KEY)) {
-                net.minecraft.nbt.CompoundTag cooldownRoot = nbt.getCompound(SKILL_COOLDOWNS_KEY);
+                CompoundTag cooldownRoot = nbt.getCompound(SKILL_COOLDOWNS_KEY);
                 for (String skillId : cooldownRoot.getAllKeys()) {
                     skillCooldowns.put(skillId, cooldownRoot.getLong(skillId));
                 }
