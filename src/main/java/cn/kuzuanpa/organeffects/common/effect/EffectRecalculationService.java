@@ -45,11 +45,15 @@ import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NumericTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
@@ -60,6 +64,8 @@ public final class EffectRecalculationService {
     public static final String ORGAN_SOURCE = "organ";
     public static final String ORGAN_INSTANCE_SOURCE_PREFIX = "organ-instance:";
     public static final String ORGAN_STATIC_INSTANCE_SOURCE_PREFIX = "organ-static-instance:";
+    public static final String ORGAN_EXTRA_POINT_INSTANCE_SOURCE_PREFIX = "organ-extra-point-instance:";
+    private static final String EXTRA_ORGAN_POINT_NBT_KEY = "extra_organ_point";
     private static final long DAY_TICKS = 24000L;
 
     private EffectRecalculationService() {
@@ -73,10 +79,11 @@ public final class EffectRecalculationService {
 
         Map<String, Long> oldPoints = new LinkedHashMap<>(holder.getEffectPoints());
         EvaluationContext context = EvaluationContext.create(entity);
-        // Static effect-instance sources are fully recomputed each pass.
+        // Static effect and extra-point sources are fully recomputed each pass.
         // Event-earned organ-instance sources (for example source:self from runtime events)
         // deliberately use a different prefix and must survive recompute until consumed/cleared.
         holder.clearSourcesWithPrefix(ORGAN_STATIC_INSTANCE_SOURCE_PREFIX);
+        holder.clearSourcesWithPrefix(ORGAN_EXTRA_POINT_INSTANCE_SOURCE_PREFIX);
         computeEffects(context, holder);
 
         computeExtensionPoints(entity, holder, context);
@@ -153,6 +160,37 @@ public final class EffectRecalculationService {
                     holder.replaceSourcePoints(source, Map.of());
                 }
                 effectIndex++;
+            }
+        }
+        computeExtraOrganPoints(context, holder);
+    }
+
+    private static void computeExtraOrganPoints(EvaluationContext context, IEffectHolder holder) {
+        for (OrganPosition pos : context.positions()) {
+            ResourceLocation organId = context.organId(pos);
+            if (organId == null) {
+                continue;
+            }
+
+            String source = ORGAN_EXTRA_POINT_INSTANCE_SOURCE_PREFIX
+                    + organId + "@" + pos.bodyPartId() + "#" + pos.slotIndex();
+            EffectPointMap pointMap = new EffectPointMap();
+            readExtraOrganPoints(pos.organ(), pointMap);
+            holder.replaceSourcePoints(source, pointMap.snapshot());
+        }
+    }
+
+    private static void readExtraOrganPoints(ItemStack organ, EffectPointMap pointMap) {
+        CompoundTag stackTag = organ.getTag();
+        if (stackTag == null || !stackTag.contains(EXTRA_ORGAN_POINT_NBT_KEY, Tag.TAG_COMPOUND)) {
+            return;
+        }
+
+        CompoundTag extraPoints = stackTag.getCompound(EXTRA_ORGAN_POINT_NBT_KEY);
+        for (String pointKey : extraPoints.getAllKeys()) {
+            Tag value = extraPoints.get(pointKey);
+            if (value instanceof NumericTag numeric) {
+                pointMap.add(pointKey, numeric.getAsLong());
             }
         }
     }
