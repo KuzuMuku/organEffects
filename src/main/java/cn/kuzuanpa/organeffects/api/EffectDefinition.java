@@ -34,12 +34,10 @@ public record EffectDefinition(
 
     public record Condition(
             String type,
-            JsonObject config,
-            JsonObject extra
+            JsonObject config
     ) {
         public Condition {
             config = config == null ? new JsonObject() : config.deepCopy();
-            extra = extra == null ? new JsonObject() : extra.deepCopy();
         }
 
         public JsonElement configValue(String key) {
@@ -63,30 +61,6 @@ public record EffectDefinition(
 
         public Boolean configBoolean(String key) {
             JsonElement value = configValue(key);
-            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
-        }
-
-        public JsonElement extraValue(String key) {
-            return extra.get(key);
-        }
-
-        public String extraString(String key) {
-            JsonElement value = extraValue(key);
-            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
-        }
-
-        public Long extraLong(String key) {
-            JsonElement value = extraValue(key);
-            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : null;
-        }
-
-        public Double extraDouble(String key) {
-            JsonElement value = extraValue(key);
-            return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsDouble() : null;
-        }
-
-        public Boolean extraBoolean(String key) {
-            JsonElement value = extraValue(key);
             return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsBoolean() : null;
         }
     }

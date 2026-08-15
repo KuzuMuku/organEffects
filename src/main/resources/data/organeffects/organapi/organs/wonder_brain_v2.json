@@ -8,45 +8,16 @@
     {
       "conditions": [
         {
-          "type": "static"
+          "type": "movement_state",
+          "state": "sneaking"
         }
       ],
-      "grants": [],
-      "events": [
-          {
-            "type": "move",
-            "distance": 2,
-            "sneaking": false,
-            "add_points": [
-            ],
-            "consume_points": [
-              {
-                "type": "runtime",
-                "id": "brain_reward_token",
-                "amount": 1
-              }],
-            "actions": []
-          },
+      "grants": [
         {
-          "type": "use_item",
-          "item": "organeffects:effect_point_viewer",
-          "add_points": [
-            {
-              "type": "runtime",
-              "id": "brain_reward_token",
-              "amount": 1,
-              "chance": {
-                "base": 0.4,
-                "lucky_step": 0.1,
-                "max": 0.9
-              }
-            }
-          ],
-          "consume_points": [],
-          "actions": []
+          "type": "attribute",
+          "attribute": "minecraft:generic.movement_speed",
+          "amount": 1
         }
-      ],
-      "executions": [
       ]
     }
   ]

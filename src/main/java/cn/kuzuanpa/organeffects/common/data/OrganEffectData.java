@@ -23,12 +23,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -180,71 +176,11 @@ public class OrganEffectData extends SimplePreparableReloadListener<Map<Resource
 
     private static EffectDefinition.Condition readConditionObject(JsonObject conditionObj, ResourceLocation fileId, int effectIndex, int conditionIndex) {
         String type = GsonHelper.getAsString(conditionObj, "type");
-        JsonObject config = readConditionConfig(conditionObj, fileId.getNamespace());
-        JsonObject extra = collectExtra(conditionObj, CONDITION_KEYS);
+        JsonObject extra = collectExtra(conditionObj, new HashSet<>());
         try {
-            return new EffectDefinition.Condition(type, config, extra);
+            return new EffectDefinition.Condition(type, extra);
         } catch (Exception e) {
             throw new IllegalArgumentException("Condition " + conditionIndex + " of effect " + effectIndex + " in " + fileId + " is invalid: " + e.getMessage(), e);
-        }
-    }
-
-    private static JsonObject readConditionConfig(JsonObject conditionObj, String defaultNamespace) {
-        JsonObject config = readConfigObject(conditionObj).deepCopy();
-        copyString(conditionObj, config, "op");
-        copyLong(conditionObj, config, "value");
-        copyLong(conditionObj, config, "min");
-        copyLong(conditionObj, config, "max");
-        copyString(conditionObj, config, "edge");
-        copyString(conditionObj, config, "mode");
-        copyString(conditionObj, config, "scope");
-        copyString(conditionObj, config, "body_part");
-        copyInt(conditionObj, config, "slot");
-        copyString(conditionObj, config, "custom_display_key");
-
-        if (conditionObj.has("organ") && !config.has("organ")) {
-            config.addProperty("organ", normalizeId(GsonHelper.getAsString(conditionObj, "organ"), defaultNamespace, false));
-        }
-        if (conditionObj.has("value") && !config.has("value_id") && shouldNormalizeValueId(GsonHelper.getAsString(conditionObj, "type"))) {
-            config.addProperty("value_id", normalizeId(GsonHelper.getAsString(conditionObj, "value"), defaultNamespace, false));
-        }
-        if (conditionObj.has("biome_tag") && !config.has("biome_tag")) {
-            config.addProperty("biome_tag", normalizeId(GsonHelper.getAsString(conditionObj, "biome_tag"), defaultNamespace, false));
-        }
-        if (conditionObj.has("tag") && !config.has("biome_tag")) {
-            config.addProperty("biome_tag", normalizeId(GsonHelper.getAsString(conditionObj, "tag"), defaultNamespace, false));
-        }
-        if (conditionObj.has("block") && !config.has("block")) {
-            config.addProperty("block", normalizeId(GsonHelper.getAsString(conditionObj, "block"), defaultNamespace, false));
-        }
-        if (conditionObj.has("block_tag") && !config.has("block_tag")) {
-            config.addProperty("block_tag", GsonHelper.getAsString(conditionObj, "block_tag"));
-        }
-        if (conditionObj.has("value") && !config.has("weather") && "weather".equals(GsonHelper.getAsString(conditionObj, "type"))) {
-            config.addProperty("weather", GsonHelper.getAsString(conditionObj, "value"));
-        }
-        return config;
-    }
-
-    private static boolean shouldNormalizeValueId(String type) {
-        return "biome".equals(type) || "dimid".equals(type);
-    }
-
-    private static void copyString(JsonObject source, JsonObject target, String key) {
-        if (source.has(key) && !target.has(key)) {
-            target.addProperty(key, GsonHelper.getAsString(source, key));
-        }
-    }
-
-    private static void copyLong(JsonObject source, JsonObject target, String key) {
-        if (source.has(key) && !target.has(key)) {
-            target.addProperty(key, GsonHelper.getAsLong(source, key));
-        }
-    }
-
-    private static void copyInt(JsonObject source, JsonObject target, String key) {
-        if (source.has(key) && !target.has(key)) {
-            target.addProperty(key, GsonHelper.getAsInt(source, key));
         }
     }
 
