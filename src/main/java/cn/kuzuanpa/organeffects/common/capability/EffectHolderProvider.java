@@ -16,6 +16,8 @@
 package cn.kuzuanpa.organeffects.common.capability;
 
 import cn.kuzuanpa.organapi.common.util.OrganJsonStorage;
+import cn.kuzuanpa.organeffects.common.data.PointConfigData;
+import cn.kuzuanpa.organeffects.common.network.OrganEffectsNetwork;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,6 +25,7 @@ import java.util.Map;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.capabilities.ICapabilitySerializable;
 import net.minecraftforge.common.util.LazyOptional;
@@ -47,6 +50,14 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
         this.owner = owner;
         this.holder = new EffectPointMapHolder();
         this.holder.setDirtyListener(this::saveToJson);
+        this.holder.setMarkChangeListener(() -> {
+            if (owner instanceof LivingEntity living && !living.level().isClientSide()) {
+                OrganEffectsNetwork.syncTargetPoints(
+                        living,
+                        PointConfigData.INSTANCE.collectClientSyncPoints(holder.getEffectPoints())
+                );
+            }
+        });
         this.optional = LazyOptional.of(() -> holder);
         loadFromJson();
     }
@@ -139,12 +150,35 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
         private final Map<String, Long> runtimeExpirations = new LinkedHashMap<>();
         private final Map<String, Long> skillCooldowns = new LinkedHashMap<>();
         private Runnable dirtyListener;
+        private Runnable markChangeListener;
         private boolean dirty;
         private boolean debugEnabled;
         private String selectedSkillId = "";
 
         void setDirtyListener(Runnable dirtyListener) {
             this.dirtyListener = dirtyListener;
+        }
+
+        void setMarkChangeListener(Runnable markChangeListener) {
+            this.markChangeListener = markChangeListener;
+        }
+
+        private void notifyMarkChanged(Map<String, Long> points) {
+            if (markChangeListener == null) {
+                return;
+            }
+            for (String pointKey : points.keySet()) {
+                if (PointConfigData.isMarkPoint(pointKey)) {
+                    markChangeListener.run();
+                    return;
+                }
+            }
+        }
+
+        private void notifyMarkChanged(String pointKey) {
+            if (markChangeListener != null && PointConfigData.isMarkPoint(pointKey)) {
+                markChangeListener.run();
+            }
         }
 
         @Override
@@ -259,6 +293,8 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
                 sources.put(sourceTag, cleaned);
             }
             dirty = true;
+            if(existing != null)notifyMarkChanged(existing);
+            notifyMarkChanged(cleaned);
         }
 
         @Override
@@ -277,6 +313,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
                 sources.remove(sourceTag);
             }
             dirty = true;
+            notifyMarkChanged(pointKey);
             return value;
         }
 
@@ -302,6 +339,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
             }
             if (consumed > 0L) {
                 dirty = true;
+                notifyMarkChanged(pointKey);
             }
             return consumed;
         }
@@ -319,6 +357,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
             }
             if (removed != 0L) {
                 dirty = true;
+                notifyMarkChanged(pointKey);
             }
             return removed;
         }
@@ -329,14 +368,19 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
                 return 0;
             }
             int removed = 0;
+            Map<String, Map<String, Long>> removedPoints = new LinkedHashMap<>();
             for (String sourceTag : new LinkedHashMap<>(sources).keySet()) {
                 if (sourceTag.startsWith(prefix)) {
+                    removedPoints.put(sourceTag, sources.get(sourceTag));
                     sources.remove(sourceTag);
                     removed++;
                 }
             }
             if (removed > 0) {
                 dirty = true;
+                for (Map<String, Long> points : removedPoints.values()) {
+                    notifyMarkChanged(points);
+                }
             }
             return removed;
         }
@@ -357,6 +401,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
                 }
             }
             dirty = true;
+            notifyMarkChanged(pointKey);
             return value;
         }
 
@@ -376,6 +421,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
             }
             if (consumed > 0L) {
                 dirty = true;
+                notifyMarkChanged(pointKey);
             }
             return consumed;
         }
@@ -387,6 +433,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
             runtimeExpirations.remove(pointKey);
             if (removed != 0L) {
                 dirty = true;
+                notifyMarkChanged(pointKey);
             }
             return removed;
         }
@@ -394,6 +441,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
         @Override
         public void clearExpiredRuntimePoints(long gameTime) {
             boolean changed = false;
+            boolean markChanged = false;
             for (String pointKey : new LinkedHashMap<>(runtimeExpirations).keySet()) {
                 long expireAt = runtimeExpirations.getOrDefault(pointKey, 0L);
                 if (expireAt > 0L && gameTime >= expireAt) {
@@ -401,11 +449,15 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
                     Long removed = runtimePoints.remove(pointKey);
                     if (removed != null) {
                         changed = true;
+                        markChanged |= PointConfigData.isMarkPoint(pointKey);
                     }
                 }
             }
             if (changed) {
                 dirty = true;
+                if (markChanged && markChangeListener != null) {
+                    markChangeListener.run();
+                }
             }
         }
 
@@ -543,7 +595,7 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
                     CompoundTag sourceTag = sourceRoot.getCompound(sourceKey);
                     Map<String, Long> sourcePoints = new LinkedHashMap<>();
                     for (String pointKey : sourceTag.getAllKeys()) {
-                        sourcePoints.put(pointKey, sourceTag.getLong(pointKey));
+                        sourcePoints.put(migrateMarkPointKey(sourceKey, pointKey), sourceTag.getLong(pointKey));
                     }
                     if (!sourcePoints.isEmpty()) {
                         sources.put(sourceKey, sourcePoints);
@@ -578,6 +630,15 @@ public class EffectHolderProvider implements ICapabilitySerializable<CompoundTag
                 }
             }
             dirty = false;
+        }
+
+        private static String migrateMarkPointKey(String sourceTag, String pointKey) {
+            if (PointConfigData.TARGET_MARK_SOURCE.equals(sourceTag)
+                    && pointKey.startsWith("counter:")
+                    && pointKey.endsWith("_mark")) {
+                return PointConfigData.MARK_PREFIX + pointKey.substring("counter:".length());
+            }
+            return pointKey;
         }
     }
 }

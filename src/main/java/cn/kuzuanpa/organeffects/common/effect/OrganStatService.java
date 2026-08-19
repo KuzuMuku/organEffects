@@ -23,6 +23,7 @@ import cn.kuzuanpa.organeffects.common.registry.OrganEffectsEnchantments;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.resources.ResourceLocation;
@@ -71,7 +72,8 @@ public final class OrganStatService {
     private static final double END_CRYSTAL_HEAL_RANGE = 32.0D;
 
     private static final Map<UUID, PendingArrowBoost> PENDING_ARROW_BOOSTS = new ConcurrentHashMap<>();
-    private static final Map<UUID, Map<String, Long>> CLIENT_SYNCED_POINTS = new ConcurrentHashMap<>();
+    private static final Map<UUID, Map<String, Long>> CLIENT_PLAYER_POINTS = new ConcurrentHashMap<>();
+    private static final Map<Integer, Map<String, Long>> CLIENT_ENTITY_POINTS = new ConcurrentHashMap<>();
 
     private OrganStatService() {
     }
@@ -170,7 +172,7 @@ public final class OrganStatService {
 
     public static long getPositiveMuscularStrength(LivingEntity entity) {
         if (entity.level().isClientSide()) {
-            return Math.max(0L, CLIENT_SYNCED_POINTS.getOrDefault(entity.getUUID(), Map.of()).getOrDefault(MUSCULAR_STRENGTH_KEY, 0L));
+            return Math.max(0L, getClientSyncedPoint(entity, MUSCULAR_STRENGTH_KEY));
         }
         return Math.max(0L, getStat(entity, MUSCULAR_STRENGTH));
     }
@@ -243,24 +245,47 @@ public final class OrganStatService {
 
     public static void clearTransientState(Player player) {
         PENDING_ARROW_BOOSTS.remove(player.getUUID());
+        CLIENT_PLAYER_POINTS.remove(player.getUUID());
     }
 
-    public static void syncClientPoints(UUID playerId, Map<String, Long> points) {
-        CLIENT_SYNCED_POINTS.put(playerId, new ConcurrentHashMap<>(points));
+    public static void syncPlayerPoints(UUID playerId, Map<String, Long> points) {
+        if (points == null || points.isEmpty()) {
+            CLIENT_PLAYER_POINTS.remove(playerId);
+            return;
+        }
+        CLIENT_PLAYER_POINTS.put(playerId, new ConcurrentHashMap<>(points));
+    }
+
+    public static void syncEntityPoints(int entityId, Map<String, Long> points) {
+        if (points == null || points.isEmpty()) {
+            CLIENT_ENTITY_POINTS.remove(entityId);
+            return;
+        }
+        CLIENT_ENTITY_POINTS.put(entityId, new ConcurrentHashMap<>(points));
     }
 
     public static Map<String, Long> getClientSyncedPoints(LivingEntity entity) {
         if (entity == null) {
             return Map.of();
         }
-        return Map.copyOf(CLIENT_SYNCED_POINTS.getOrDefault(entity.getUUID(), Map.of()));
+        if (entity instanceof Player player) {
+            return Map.copyOf(CLIENT_PLAYER_POINTS.getOrDefault(player.getUUID(), Map.of()));
+        }
+        return Map.copyOf(CLIENT_ENTITY_POINTS.getOrDefault(entity.getId(), Map.of()));
     }
 
     public static long getClientSyncedPoint(LivingEntity entity, String pointKey) {
         if (entity == null || pointKey == null || pointKey.isBlank()) {
             return 0L;
         }
-        return CLIENT_SYNCED_POINTS.getOrDefault(entity.getUUID(), Map.of()).getOrDefault(pointKey, 0L);
+        if (entity instanceof Player player) {
+            return CLIENT_PLAYER_POINTS.getOrDefault(player.getUUID(), Map.of()).getOrDefault(pointKey, 0L);
+        }
+        return CLIENT_ENTITY_POINTS.getOrDefault(entity.getId(), Map.of()).getOrDefault(pointKey, 0L);
+    }
+
+    public static Set<Integer> getClientSyncedEntityIds() {
+        return Set.copyOf(CLIENT_ENTITY_POINTS.keySet());
     }
 
     private static void tickOxygen(Player player, Map<String, Long> points) {

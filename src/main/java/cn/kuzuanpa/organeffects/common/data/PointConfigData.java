@@ -37,6 +37,13 @@ import org.slf4j.Logger;
 
 public final class PointConfigData extends SimplePreparableReloadListener<Map<String, PointConfigData.PointConfig>> {
     public static final PointConfigData INSTANCE = new PointConfigData();
+    public static final String MARK_PREFIX = "mark:";
+    public static final String TARGET_MARK_SOURCE = "target_mark";
+    public static final ResourceLocation DEFAULT_MARK_ICON = ResourceLocation.fromNamespaceAndPath("organeffects", "mark/default");
+    public static final int DEFAULT_MARK_PRIORITY = 10;
+    public static final float DEFAULT_MARK_RENDER_SCALE = 0.3F;
+    public static final double DEFAULT_MARK_RENDER_OFFSET = 0.0D;
+    public static final int DEFAULT_MARK_TINT = 0xFFFFFFFF;
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().create();
@@ -73,6 +80,18 @@ public final class PointConfigData extends SimplePreparableReloadListener<Map<St
                 String overflowMode = GsonHelper.getAsString(object, "overflow_mode", "spill");
                 String onHitRuntime = GsonHelper.getAsString(object, "on_hit_runtime", "");
                 String onBreakRuntime = GsonHelper.getAsString(object, "on_break_runtime", "");
+                ResourceLocation markIcon = object.has("mark_icon")
+                        ? ResourceLocation.tryParse(GsonHelper.getAsString(object, "mark_icon"))
+                        : null;
+                float markRenderScale = object.has("mark_render_scale")
+                        ? (float) GsonHelper.getAsDouble(object, "mark_render_scale")
+                        : DEFAULT_MARK_RENDER_SCALE;
+                double markRenderOffset = object.has("mark_render_offset")
+                        ? GsonHelper.getAsDouble(object, "mark_render_offset")
+                        : DEFAULT_MARK_RENDER_OFFSET;
+                int markTint = object.has("mark_tint")
+                        ? parseTint(GsonHelper.getAsString(object, "mark_tint"))
+                        : DEFAULT_MARK_TINT;
                 result.put(pointKey, new PointConfig(
                         syncToClient,
                         displayNameKey,
@@ -81,7 +100,11 @@ public final class PointConfigData extends SimplePreparableReloadListener<Map<St
                         damageTypeWhitelist,
                         overflowMode,
                         onHitRuntime,
-                        onBreakRuntime
+                        onBreakRuntime,
+                        markIcon,
+                        markRenderScale,
+                        markRenderOffset,
+                        markTint
                 ));
             } catch (Exception exception) {
                 LOGGER.warn("Failed to load point config from {}: {}", entry.getKey(), exception.getMessage());
@@ -117,6 +140,10 @@ public final class PointConfigData extends SimplePreparableReloadListener<Map<St
         return synced;
     }
 
+    public static boolean isMarkPoint(String pointKey) {
+        return pointKey != null && pointKey.startsWith(MARK_PREFIX);
+    }
+
     private static List<String> readDamageTypes(JsonObject object) {
         if (!object.has("damage_types") || !object.get("damage_types").isJsonArray()) {
             return List.of();
@@ -134,6 +161,23 @@ public final class PointConfigData extends SimplePreparableReloadListener<Map<St
         return List.copyOf(result);
     }
 
+    private static int parseTint(String value) {
+        if (value == null || value.isBlank()) {
+            return DEFAULT_MARK_TINT;
+        }
+        String hex = value.startsWith("#") ? value.substring(1) : value;
+        try {
+            if (hex.length() == 6) {
+                return 0xFF000000 | (int) Long.parseLong(hex, 16);
+            }
+            if (hex.length() == 8) {
+                return (int) Long.parseLong(hex, 16);
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        return DEFAULT_MARK_TINT;
+    }
+
     public record PointConfig(
             Boolean syncToClient,
             String displayNameKey,
@@ -142,13 +186,19 @@ public final class PointConfigData extends SimplePreparableReloadListener<Map<St
             boolean damageTypeWhitelist,
             String overflowMode,
             String onHitRuntime,
-            String onBreakRuntime
+            String onBreakRuntime,
+            ResourceLocation markIcon,
+            float markRenderScale,
+            double markRenderOffset,
+            int markTint
     ) {
         public PointConfig {
             damageTypes = damageTypes == null ? List.of() : List.copyOf(damageTypes);
             overflowMode = overflowMode == null || overflowMode.isBlank() ? "spill" : overflowMode;
             onHitRuntime = onHitRuntime == null ? "" : onHitRuntime;
             onBreakRuntime = onBreakRuntime == null ? "" : onBreakRuntime;
+            markIcon = markIcon == null ? DEFAULT_MARK_ICON : markIcon;
+            markRenderScale = Math.max(0.001F, markRenderScale);
         }
     }
 }

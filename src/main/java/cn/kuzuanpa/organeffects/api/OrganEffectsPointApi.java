@@ -18,6 +18,7 @@ package cn.kuzuanpa.organeffects.api;
 import cn.kuzuanpa.organeffects.common.capability.EffectCapabilities;
 import cn.kuzuanpa.organeffects.common.capability.IEffectHolder;
 import cn.kuzuanpa.organeffects.common.effect.EffectRecalculationService;
+import cn.kuzuanpa.organeffects.common.data.PointConfigData;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.world.entity.LivingEntity;
@@ -30,6 +31,9 @@ import net.minecraft.world.entity.player.Player;
  * holder capability is attached to every living entity.
  */
 public final class OrganEffectsPointApi {
+    public static final String MARK_PREFIX = PointConfigData.MARK_PREFIX;
+    public static final String TARGET_MARK_SOURCE = PointConfigData.TARGET_MARK_SOURCE;
+
     private OrganEffectsPointApi() {
     }
 
@@ -52,6 +56,64 @@ public final class OrganEffectsPointApi {
 
     public static long getClientSyncedPoint(LivingEntity entity, String pointKey) {
         return cn.kuzuanpa.organeffects.common.effect.OrganStatService.getClientSyncedPoint(entity, pointKey);
+    }
+
+    public static boolean isMarkPoint(String pointKey) {
+        return PointConfigData.isMarkPoint(pointKey);
+    }
+
+    public static Map<String, Long> getMarks(LivingEntity entity) {
+        IEffectHolder holder = getHolder(entity);
+        if (holder == null) {
+            return Map.of();
+        }
+        Map<String, Long> marks = new LinkedHashMap<>();
+        for (Map.Entry<String, Long> entry : holder.getEffectPoints().entrySet()) {
+            if (isMarkPoint(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0L) {
+                marks.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return marks;
+    }
+
+    public static long addMarkPoint(LivingEntity target, String pointId, long amount) {
+        return addSourcePoint(target, TARGET_MARK_SOURCE, markPointKey(pointId), amount);
+    }
+
+    public static long consumeMarkPoint(LivingEntity target, String pointId, long amount) {
+        return consumeSourcePoint(target, TARGET_MARK_SOURCE, markPointKey(pointId), amount);
+    }
+
+    public static long clearMarkPoint(LivingEntity target, String pointId) {
+        return clearSourcePoint(target, TARGET_MARK_SOURCE, markPointKey(pointId));
+    }
+
+    public static void clearMarks(LivingEntity target) {
+        IEffectHolder holder = getHolder(target);
+        if (holder == null || !isServerSide(target)) {
+            return;
+        }
+        for (Map.Entry<String, Map<String, Long>> sourceEntry : holder.getPointSources().entrySet()) {
+            String sourceTag = sourceEntry.getKey();
+            for (String pointKey : Map.copyOf(sourceEntry.getValue()).keySet()) {
+                if (!isMarkPoint(pointKey)) {
+                    continue;
+                }
+                if ("runtime".equals(sourceTag)) {
+                    holder.clearRuntimePoint(pointKey);
+                } else {
+                    holder.clearSourcePoint(sourceTag, pointKey);
+                }
+            }
+        }
+    }
+
+    public static String markPointKey(String pointId) {
+        String value = pointId == null ? "" : pointId;
+        if (value.isBlank() || MARK_PREFIX.equals(value)) {
+            return "";
+        }
+        return value.startsWith(MARK_PREFIX) ? value : MARK_PREFIX + value;
     }
 
     public static long addSourcePoint(LivingEntity entity, String sourceTag, String pointKey, long amount) {

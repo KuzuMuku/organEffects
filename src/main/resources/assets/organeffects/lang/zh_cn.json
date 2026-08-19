@@ -22,6 +22,7 @@
   "message.organeffects.points.group.skill": "技能",
   "message.organeffects.points.group.organ_stat": "器官机能",
   "message.organeffects.points.group.counter": "计数器",
+  "message.organeffects.points.group.mark": "标记",
   "message.organeffects.points.group.runtime": "运行时",
   "message.organeffects.points.group.unknown": "其他",
   "message.organeffects.effects.viewer_header": "潜在器官效果",

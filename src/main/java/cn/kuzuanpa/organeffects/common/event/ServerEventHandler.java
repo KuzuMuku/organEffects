@@ -25,6 +25,8 @@ import cn.kuzuanpa.organeffects.common.effect.OrganStatService;
 import cn.kuzuanpa.organeffects.common.effect.RuntimeEffectService;
 import cn.kuzuanpa.organeffects.common.effect.RuntimePointExecutor;
 import cn.kuzuanpa.organeffects.common.effect.ShieldPointService;
+import cn.kuzuanpa.organeffects.common.data.PointConfigData;
+import cn.kuzuanpa.organeffects.common.network.OrganEffectsNetwork;
 import cn.kuzuanpa.organeffects.common.skill.SkillManager;
 import java.util.HashMap;
 import java.util.Map;
@@ -276,6 +278,20 @@ public class ServerEventHandler {
         RuntimeEffectService.clearTransientState(event.getEntity());
         OrganStatService.clearTransientState(event.getEntity());
         SkillManager.clearTransientState(event.getEntity());
+    }
+
+    @SubscribeEvent
+    public void onStartTracking(PlayerEvent.StartTracking event) {
+        if (event.getTarget() instanceof LivingEntity living && event.getEntity() instanceof ServerPlayer player) {
+            IEffectHolder holder = living.getCapability(EffectCapabilities.EFFECT_HOLDER).orElse(null);
+            if (holder != null) {
+                OrganEffectsNetwork.syncTargetPointsToPlayer(
+                        player,
+                        living,
+                        PointConfigData.INSTANCE.collectClientSyncPoints(holder.getEffectPoints())
+                );
+            }
+        }
     }
 
     @SubscribeEvent

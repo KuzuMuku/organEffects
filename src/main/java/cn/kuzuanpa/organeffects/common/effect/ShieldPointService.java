@@ -156,7 +156,20 @@ public final class ShieldPointService {
     }
 
     private static PointConfigData.PointConfig defaultConfig() {
-        return new PointConfigData.PointConfig(null, null, 0, List.of(), false, "spill", "", "");
+        return new PointConfigData.PointConfig(
+                null,
+                null,
+                0,
+                List.of(),
+                false,
+                "spill",
+                "",
+                "",
+                PointConfigData.DEFAULT_MARK_ICON,
+                PointConfigData.DEFAULT_MARK_RENDER_SCALE,
+                PointConfigData.DEFAULT_MARK_RENDER_OFFSET,
+                PointConfigData.DEFAULT_MARK_TINT
+        );
     }
 
     private record ShieldEntry(

@@ -17,17 +17,19 @@ package cn.kuzuanpa.organeffects.common.network;
 
 import cn.kuzuanpa.organeffects.OrganEffectsMod;
 import cn.kuzuanpa.organeffects.common.skill.SkillManager;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class OrganEffectsNetwork {
-    private static final String PROTOCOL = "1";
+    private static final String PROTOCOL = "2";
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(OrganEffectsMod.MOD_ID, "main"),
             () -> PROTOCOL,
@@ -84,7 +86,8 @@ public final class OrganEffectsNetwork {
     }
 
     public static void syncClientPoints(ServerPlayer player, Map<String, Long> points) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncClientPointsS2CPacket(player.getUUID(), points));
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                SyncClientPointsS2CPacket.forPlayer(player.getUUID(), points));
     }
 
     public static void sendBeamEffect(Entity source, BeamEffectKind kind, Entity target, int durationTicks) {
@@ -101,6 +104,26 @@ public final class OrganEffectsNetwork {
         }
         CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> source),
                 new BeamEffectS2CPacket(kind, source.getId(), -1, 0));
+    }
+
+    public static void syncTargetPoints(LivingEntity target, Map<String, Long> points) {
+        if (target == null || target.level().isClientSide()) {
+            return;
+        }
+        CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> target),
+                SyncClientPointsS2CPacket.forEntity(target.getId(), copyPoints(points)));
+    }
+
+    public static void syncTargetPointsToPlayer(ServerPlayer player, LivingEntity target, Map<String, Long> points) {
+        if (player == null || target == null) {
+            return;
+        }
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                SyncClientPointsS2CPacket.forEntity(target.getId(), copyPoints(points)));
+    }
+
+    private static Map<String, Long> copyPoints(Map<String, Long> points) {
+        return points == null ? Map.of() : new LinkedHashMap<>(points);
     }
 
     public enum BeamEffectKind {

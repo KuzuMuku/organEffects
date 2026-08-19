@@ -22,6 +22,7 @@
   "message.organeffects.points.group.skill": "Skills",
   "message.organeffects.points.group.organ_stat": "Organ Stats",
   "message.organeffects.points.group.counter": "Counters",
+  "message.organeffects.points.group.mark": "Marks",
   "message.organeffects.points.group.runtime": "Runtime",
   "message.organeffects.points.group.unknown": "Other",
   "message.organeffects.effects.viewer_header": "Potential Organ Effects",
